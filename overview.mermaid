@@ -1,0 +1,63 @@
+graph TB
+    %% Devices
+    subgraph "Camera Devices"
+        D1[Camera Device 1]
+        D2[Camera Device 2]
+        DN[Camera Device N]
+    end
+    
+    %% Core Infrastructure
+    MQTT[MQTT Broker]
+    
+    %% Services
+    subgraph "Backend Services"
+        DS[Device Service]
+        DB[(PostgreSQL Database)]
+        FS[File System<br/>Video Storage]
+    end
+    
+    %% Future Services
+    subgraph "Future Services" 
+        DetS[Detection Service<br/>Object Detection]
+        NotS[Notification Service<br/>Push Notifications]
+    end
+    
+    %% Users/Clients
+    Client[Web/Mobile Client]
+    
+    %% WebSocket Connections for Video Streaming
+    D1 -.->|WebSocket<br/>MJPEG Stream| DS
+    D2 -.->|WebSocket<br/>MJPEG Stream| DS
+    DN -.->|WebSocket<br/>MJPEG Stream| DS
+    
+    %% MQTT Communications
+    D1 <-->|MQTT<br/>• /heartbeat/<br/>• /start-stream/<br/>• /motion-detected/| MQTT
+    D2 <-->|MQTT<br/>• /heartbeat/<br/>• /start-stream/<br/>• /motion-detected/| MQTT
+    DN <-->|MQTT<br/>• /heartbeat/<br/>• /start-stream/<br/>• /motion-detected/| MQTT
+    
+    MQTT <--> DS
+    
+    %% Service Dependencies
+    DS --> DB
+    DS --> FS
+    
+    %% Client Interactions
+    Client --> DS
+    
+    %% Future Integrations (dashed lines)
+    DS -.->|Future| DetS
+    DS -.->|Future| NotS
+    DetS -.->|Future| NotS
+    
+    %% Darcula Theme Color Styling
+    classDef device fill:#2B2B2B,stroke:#6897BB,stroke-width:2px,color:#A9B7C6
+    classDef service fill:#2B2B2B,stroke:#CC7832,stroke-width:2px,color:#FFC66D
+    classDef storage fill:#2B2B2B,stroke:#9876AA,stroke-width:2px,color:#A9B7C6
+    classDef client fill:#2B2B2B,stroke:#6A8759,stroke-width:2px,color:#A5C261
+    classDef future fill:#2B2B2B,stroke:#BC3F3C,stroke-width:2px,color:#FF6B68,stroke-dasharray: 5 5
+    
+    class D1,D2,DN device
+    class DS,MQTT service
+    class DB,FS storage
+    class Client client
+    class DetS,NotS future

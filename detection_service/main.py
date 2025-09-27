@@ -1,10 +1,7 @@
 import logging
 from pathlib import Path
 
-import cv2
 import numpy as np
-from mediapipe import Image, ImageFormat
-from mediapipe.tasks.python import BaseOptions, vision
 
 
 logger = logging.getLogger(__name__)
