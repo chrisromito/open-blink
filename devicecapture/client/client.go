@@ -43,7 +43,6 @@ func (c *Client) Start() error {
 
 func (c *Client) capture() error {
 	outputFileName := fmt.Sprintf("./videos/output-%s-%v.mjpeg", c.DeviceId, c.StartedAt)
-	hc := http.Client{}
 	// Start Connection
 	//resp, err := http.DefaultClient.Do(req)
 
@@ -53,35 +52,49 @@ func (c *Client) capture() error {
 		return err
 	}
 	// Send request
-	resp, err := hc.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Printf("Error sending request: %v", err)
-		return err
+		log.Fatal(err)
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("Received non-OK status code: %d", resp.StatusCode)
+		log.Fatalf("Status code is not OK: %v (%s)", resp.StatusCode, resp.Status)
 	}
-	// Create the output file
-	outFile, err := os.Create(outputFileName)
+
+	dec, err := mjpeg.NewDecoderFromResponse(resp)
+	img, err := dec.Decode()
 	if err != nil {
-		log.Fatalf("Error creating file: %v", err)
-		return err
+		log.Fatal(err)
 	}
-	defer outFile.Close()
-	// Use a goroutine to copy the stream to the file.
-	// This ensures the main goroutine can continue and the context timeout will work correctly.
-	go func() {
-		_, err := io.Copy(outFile, resp.Body)
-		if err != nil && err != context.Canceled {
-			fmt.Printf("Error writing to file: %v\n", err)
-			return
-		}
-	}()
-	//// Wait for the context to finish.
-	//// The copy will be cancelled when the timeout is reached.
-	<-c.ctx.Done()
-	return nil
+
+	//resp, err := hc.Do(req)
+	//if err != nil {
+	//	fmt.Printf("Error sending request: %v", err)
+	//	return err
+	//}
+	//defer resp.Body.Close()
+	//if resp.StatusCode != http.StatusOK {
+	//	log.Fatalf("Received non-OK status code: %d", resp.StatusCode)
+	//}
+	//// Create the output file
+	//outFile, err := os.Create(outputFileName)
+	//if err != nil {
+	//	log.Fatalf("Error creating file: %v", err)
+	//	return err
+	//}
+	//defer outFile.Close()
+	//// Use a goroutine to copy the stream to the file.
+	//// This ensures the main goroutine can continue and the context timeout will work correctly.
+	//go func() {
+	//	_, err := io.Copy(outFile, resp.Body)
+	//	if err != nil && err != context.Canceled {
+	//		fmt.Printf("Error writing to file: %v\n", err)
+	//		return
+	//	}
+	//}()
+	////// Wait for the context to finish.
+	////// The copy will be cancelled when the timeout is reached.
+	//<-c.ctx.Done()
+	//return nil
 }
 
 func (c *Client) Stop() {
