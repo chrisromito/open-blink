@@ -2,14 +2,8 @@ package client
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"time"
-
-	"github.com/mattn/go-mjpeg"
 )
 
 type Client struct {
@@ -42,30 +36,14 @@ func (c *Client) Start() error {
 }
 
 func (c *Client) capture() error {
-	outputFileName := fmt.Sprintf("./videos/output-%s-%v.mjpeg", c.DeviceId, c.StartedAt)
-	// Start Connection
-	//resp, err := http.DefaultClient.Do(req)
-
-	req, err := http.NewRequestWithContext(c.ctx, "GET", c.DeviceUrl, nil)
+	err := GetImages(c)
+	log.Printf("Got image")
 	if err != nil {
-		fmt.Printf("Error creating request: %v", err)
 		return err
 	}
-	// Send request
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("Status code is not OK: %v (%s)", resp.StatusCode, resp.Status)
-	}
-
-	dec, err := mjpeg.NewDecoderFromResponse(resp)
-	img, err := dec.Decode()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	//err = WriteImage(c, i)
+	//log.Printf("Wrote image")
+	return nil
 	//resp, err := hc.Do(req)
 	//if err != nil {
 	//	fmt.Printf("Error sending request: %v", err)

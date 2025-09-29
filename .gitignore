@@ -16,3 +16,7 @@ build/
 .DS_STORE
 **/.DS_STORE
 **/*.mjpeg
+**/*.jpeg
+**/*.jpg
+**/*.mp4
+**/*.avi
