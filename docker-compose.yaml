@@ -1,6 +1,6 @@
 services:
   device-service:
-    build: ./device_service
+    build: devicecapture
     depends_on:
       - db
   db:
