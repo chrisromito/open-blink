@@ -8,11 +8,22 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	//"./client"
+	"devicecapture/client"
 )
 
 func captureStream() {
+	conf := NewConfig()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	cameraClient := NewClient()
+	defer cancel()
+	cameraClient := client.NewClient(ctx, "1", conf.DeviceUrl)
+	err := cameraClient.Start()
+	if err != nil {
+		log.Fatalf("Error starting camera: %v", err)
+	}
+	//<-ctx.Done()
+	cameraClient.Stop()
 }
 
 func main() {
@@ -21,7 +32,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client := http.Client{}
+	hc := http.Client{}
 	req, err := http.NewRequestWithContext(ctx, "GET", conf.DeviceUrl, nil)
 	if err != nil {
 		fmt.Printf("Error creating request: %v", err)
@@ -29,7 +40,7 @@ func main() {
 	}
 
 	// Send request
-	resp, err := client.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		fmt.Printf("Error sending request: %v", err)
 		return

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/mattn/go-mjpeg"
 )
 
 type Client struct {
@@ -40,9 +42,11 @@ func (c *Client) Start() error {
 }
 
 func (c *Client) capture() error {
-	outputFileName := fmt.Sprintf("output-%s-%v.mjpeg", c.DeviceId, c.StartedAt)
+	outputFileName := fmt.Sprintf("./videos/output-%s-%v.mjpeg", c.DeviceId, c.StartedAt)
 	hc := http.Client{}
 	// Start Connection
+	//resp, err := http.DefaultClient.Do(req)
+
 	req, err := http.NewRequestWithContext(c.ctx, "GET", c.DeviceUrl, nil)
 	if err != nil {
 		fmt.Printf("Error creating request: %v", err)
@@ -74,8 +78,8 @@ func (c *Client) capture() error {
 			return
 		}
 	}()
-	// Wait for the context to finish.
-	// The copy will be cancelled when the timeout is reached.
+	//// Wait for the context to finish.
+	//// The copy will be cancelled when the timeout is reached.
 	<-c.ctx.Done()
 	return nil
 }
