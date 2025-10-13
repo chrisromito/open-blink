@@ -1,0 +1,7 @@
+services:
+  devicecapture:
+    build: .
+    volumes:
+      - ./videos:/videos
+    environment:
+      - MQTT_HOST='host.docker.internal:1833'

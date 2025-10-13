@@ -1,18 +1,19 @@
 # Device service
 ####################
 
-TLDR: Communicates with camera devices via MQTT & WebSockets
+TLDR: Device = ESP32CAM that acts as a "server". This module is the client.
+Devices update this system via MQTT
+This system receives MJPEG streams directly from devices on the network.
+Devices are configured in ./devices.json
 
-### Device -> Server
-- WS: Stream video feeds (via MJPEG frames) when they detect motion
-  - Video streams are saved to the local file system
 
 ### Server <-> MQTT <-> Device
-TODO: Can devices use MQTT to register themselves?
 Device management uses MQTT to push messages to devices
 - /heartbeat/: Device heartbeat
 - /start-stream/: Allow users to turn on video feeds remotely
 - /motion-detected/: Device notifies server of motion detection
+- /image/{DEVICE_ID}: Image payloads (as bytes)
+- object-detection/{DEVICE_ID}
 
 ## Future
 - Object detection via detection_service

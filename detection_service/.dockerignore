@@ -1,4 +1,6 @@
-# Python-generated files
+
+./.idea
+test_videos/*
 __pycache__/
 *.py[oc]
 build/
@@ -7,9 +9,13 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
 venv
+.venv
+./.venv/*/**
 
+# Media
+videos
+./videos/*/**
 */**.jpeg
 */**.jpg
 */**.avi

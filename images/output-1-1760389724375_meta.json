@@ -1,0 +1,32 @@
+{
+    "device_id": "1",
+    "timestamp": 1760389731905,
+    "image_path": "/videos/1-1760389724075/output-1-1760389724375_detection.jpeg",
+    "meta_path": "/videos/1-1760389724075/output-1-1760389724375_meta.json",
+    "detections": [
+        {
+            "label": "person",
+            "confidence": 0.964,
+            "bbox": {
+                "x1": 1,
+                "y1": 34,
+                "x2": 156,
+                "y2": 232
+            }
+        },
+        {
+            "label": "person",
+            "confidence": 0.725,
+            "bbox": {
+                "x1": 92,
+                "y1": 30,
+                "x2": 154,
+                "y2": 185
+            }
+        }
+    ],
+    "labels": [
+        "person",
+        "person"
+    ]
+}

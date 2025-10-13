@@ -10,11 +10,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-
-RUN go build -v -o ./bin/device_service
+COPY ./devices.json ./bin/devices.json
+RUN go build -v -o ./bin/devicecapture
 
 FROM base AS final
 WORKDIR /usr/src/app
 COPY --from=build /usr/src/build/bin .
 
-CMD ["./device_service"]
+RUN mkdir -p videos
+
+CMD ["./devicecapture"]

@@ -1,18 +1,42 @@
 services:
-  device-service:
-    build: devicecapture
+  blink_detection_service:
+    container_name: blink_detection_service
+    build: ./detection_service
     depends_on:
-      - db
-  db:
-    image: postgres:14.1-alpine
-    environment:
-      POSTGRES_DB: openblink
-      POSTGRES_USER: openblink
-      POSTGRES_PASSWORD: openblink
-    ports:
-      - "5432:5432" # Optional: for host access
+      - mosquitto
+    networks:
+      - mosquitto
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./videos:/videos
+    environment:
+      - MQTT_HOST='mosquitto'
+    restart: unless-stopped
+  devicecapture:
+    build: ./devicecapture
+    container_name: devicecapture
+    depends_on:
+      - mosquitto
+    networks:
+      - mosquitto
+    volumes:
+      - ./videos:/videos
+    environment:
+      - MQTT_HOST='mosquitto:1833'
+    restart: unless-stopped
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    networks:
+      - mosquitto
+    ports:
+      - "1883:1883" # Standard MQTT port
+      - "9001:9001" # Websocket port for MQTT
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/data:/mosquitto/data:rw
+      - ./mosquitto/log:/mosquitto/log:rw
+    restart: unless-stopped
 
-volumes:
-  db_data:
+networks:
+  mosquitto:
+    driver: bridge
