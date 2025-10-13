@@ -1,0 +1,23 @@
+
+./.idea
+test_videos/*
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+venv
+.venv
+./.venv/*/**
+
+# Media
+videos
+./videos/*/**
+*/**.jpeg
+*/**.jpg
+*/**.avi
+*/**.mp4
+

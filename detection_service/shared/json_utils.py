@@ -8,7 +8,7 @@ def read_json(file_path: Union[Path, str]) -> Union[dict, list]:
         return json.load(f)
 
 
-def write_json(file_path: Union[Path, str], data: Union[dict, list]):
+def write_json(file_path: Union[Path, str], data: Union[dict, list]) -> None:
     with open(file_path, 'w+') as f:
         json.dump(data, f, indent=4)
 

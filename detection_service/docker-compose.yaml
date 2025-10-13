@@ -1,0 +1,8 @@
+services:
+  detection_service:
+    container_name: detection_service
+    build: .
+    volumes:
+      - ./videos:/videos
+    environment:
+      - MQTT_HOST='0.0.0.0'

@@ -8,6 +8,7 @@ dependencies = [
     "numpy>=1.26.4",
     "opencv-contrib-python>=4.11.0.86",
     "opencv-python>=4.11.0.86",
+    "paho-mqtt>=2.1.0",
     "torch>=2.8.0",
     "torchvision>=0.23.0",
 ]
