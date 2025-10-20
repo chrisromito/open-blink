@@ -1,32 +1,33 @@
-import sys
 import json
 import logging
-
 import paho.mqtt.client as mqtt
 import queue
+import sys
 import threading
 import time
 from datetime import datetime
 from os import environ
 
-from detector.detection_service import get_images_in_directory, ImageMessage, BatchMessage, InMessage, DetectionRepo, OutMessage, DetectionService
+from detector.detection_service import get_images_in_directory, ImageMessage, InMessage, DetectionRepo, OutMessage, DetectionService
 from detector.detection_types import BatchResult
 from detector.image_detection import get_model, process_image, process_images
 from pubsub.client import get_client
-from pubsub.tcp_ping import ping
+from pubsub.tcp_ping import ping, ping_client
 from shared.log_utils import logger
 
 
-def get_broker() -> str | None:
+def get_broker(client) -> str | None:
     broker_options: list[str] = [
-        environ.get('MQTT_HOST', None),
+        environ.get('MQTT_HOST', 'mosquitto'),
+        'mosquitto',
         'host.docker.internal',
-        '0.0.0.0',
         'localhost',
+        '0.0.0.0'
     ]
     for broker in broker_options:
         valid = ping(broker, 1883)
-        if valid:
+        valid_client = ping_client(client, broker, 1883)
+        if valid_client or valid:
             return broker
     return None
 
@@ -215,9 +216,9 @@ class App:
 
 def main():
     pubsub_client = get_client()
-    broker = get_broker()
+    broker = get_broker(pubsub_client)
     if broker is None:
-        broker = get_broker()
+        broker = get_broker(pubsub_client)
     if broker is None:
         raise Exception("Could not connect to MQTT broker")
     model = get_model()

@@ -1,3 +1,4 @@
+import paho.mqtt.client as mqtt
 import socket
 
 
@@ -26,4 +27,13 @@ def ping(host, port, timeout: int = 1) -> bool:
     except socket.error as e:
         s.close()
         print(f"Failed to connect to {host}:{port}. Error: {e}")
+        return False
+
+
+def ping_client(client: mqtt.Client, broker: str, port: int = 1883) -> bool:
+    try:
+        client.connect(broker, port)
+        client.disconnect()
+        return True
+    except:
         return False

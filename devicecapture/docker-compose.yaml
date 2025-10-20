@@ -5,3 +5,7 @@ services:
       - ./videos:/videos
     environment:
       - MQTT_HOST='host.docker.internal:1833'
+  mockdevice:
+    build: ./mockdevice.Dockerfile
+    ports:
+      - "8080:8080"

@@ -34,16 +34,24 @@ type DeviceConfig struct {
 }
 
 func LoadDevices() ([]DeviceConfig, error) {
+	mock := []DeviceConfig{
+		DeviceConfig{
+			DeviceId:  "mockdevice",
+			DeviceUrl: "http://localhost:8080",
+			Name:      "Mock Device",
+		},
+	}
 	fileContent, err := os.ReadFile("./devices.json")
 	if err != nil {
-		return nil, err
+		return mock, err
 	}
 	var configs []DeviceConfig
 	err = json.Unmarshal(fileContent, &configs)
 	if err != nil {
-		return nil, err
+		return mock, err
 	}
-	return configs, nil
+	cs := append(configs, mock...)
+	return cs, nil
 }
 
 func NewConfig() *Config {

@@ -60,16 +60,16 @@ def process_image(model: FasterRCNN, image_path: str | bytes | io.BytesIO) -> tu
     return out_image, detections, categories
 
 
-def process_images(model: FasterRCNN, image_paths: list[str]) -> BatchResult:
+def process_images(model: FasterRCNN, image_paths: list[str | bytes | io.BytesIO]) -> BatchResult:
     """
     Process multiple images in a batch for efficient inference.
     
     Args:
         model: The FasterRCNN model
-        image_paths: List of image file paths
+        image_paths: List of image file paths (or a list of bytes) to process
         
     Returns:
-        List of tuples, each containing (processed_image, detections, categories)
+        list[DetectionResult]
     """
     if not image_paths:
         return []

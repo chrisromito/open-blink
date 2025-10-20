@@ -1,6 +1,8 @@
 package device
 
 import (
+	"devicecapture/device/receiver"
+
 	"context"
 	"errors"
 	"image"
@@ -60,7 +62,7 @@ func TestApi_StreamFrames_Success(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	imgChan := make(chan Frame, 10)
+	imgChan := make(chan receiver.Frame, 10)
 
 	go func() {
 		err := api.StreamFrames(ctx, imgChan)
@@ -86,7 +88,7 @@ func TestApi_StreamFrames_Success(t *testing.T) {
 func TestApi_StreamFrames_NetworkError(t *testing.T) {
 	api := NewApi("test-device", "http://invalid-url-that-does-not-exist:99999")
 	ctx := context.Background()
-	imgChan := make(chan Frame, 1)
+	imgChan := make(chan receiver.Frame, 1)
 
 	err := api.StreamFrames(ctx, imgChan)
 	if err == nil {
@@ -101,7 +103,7 @@ func TestApi_StreamFrames_ContextCancellation(t *testing.T) {
 
 	api := NewApi("test-device", server.URL)
 	ctx, cancel := context.WithCancel(context.Background())
-	imgChan := make(chan Frame, 10)
+	imgChan := make(chan receiver.Frame, 10)
 
 	done := make(chan error, 1)
 	go func() {
@@ -135,7 +137,7 @@ func TestApi_StreamFrames_ChannelFull(t *testing.T) {
 	defer cancel()
 
 	// Create a small channel that will fill up quickly
-	imgChan := make(chan Frame, 1)
+	imgChan := make(chan receiver.Frame, 1)
 
 	err := api.StreamFrames(ctx, imgChan)
 	// Should complete without hanging, even if the channel gets full
