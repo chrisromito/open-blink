@@ -2,7 +2,7 @@ from pathlib import Path
 
 from detector.image_detection import get_model, process_images
 from shared.perf_utils import block_timer
-from main import setup_logging, logger
+from shared.log_utils import logger
 
 
 OUT_PATH = Path('/videos')
@@ -18,6 +18,18 @@ def test_object_detection(file_names: list[str]):
         for f_name in file_names
     ]
     process_images(model, paths)
+    timer()
+
+
+def test_object_detection_bytes(batch_size: int):
+    image_path = Path('./test_videos/charchar-250.jpg')
+    with open(image_path, 'rb') as f:
+        image_bytes = f.read()
+    inputs: list[bytes] = []
+    for i in range(batch_size):
+        inputs.append(image_bytes)
+    timer = block_timer(f'test_object_detection_bytes for {batch_size} images completed in', log_fn=logger.debug)
+    process_images(model, inputs)
     timer()
 
 

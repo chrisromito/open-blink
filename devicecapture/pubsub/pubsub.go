@@ -7,8 +7,10 @@ import (
 )
 
 func BrokerHelper(cId string, broker string) (MqttClient, error) {
-	brokers := []string{broker, "0.0.0.0:1883", "host.docker.internal:1883"}
-	for _, b := range brokers {
+	urls := []string{broker, "localhost", "0.0.0.0", "mosquitto", "host.docker.internal"}
+	//brokers := []string{broker, "0.0.0.0:1883", "host.docker.internal:1883"}
+	for _, url := range urls {
+		b := fmt.Sprintf("%s:1883", url)
 		c, err := NewDeviceClient(cId, b)
 		if err == nil {
 			return c, nil
@@ -17,7 +19,7 @@ func BrokerHelper(cId string, broker string) (MqttClient, error) {
 		log.Printf("Error connecting to broker: %s", b)
 		log.Printf("Error: %v", err)
 		// Return the error if this is the last broker
-		if b == brokers[len(brokers)-1] {
+		if b == urls[len(urls)-1] {
 			return c, err
 		}
 	}

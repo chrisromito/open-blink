@@ -16,8 +16,6 @@ venv
 # Media
 videos
 ./videos/*/**
-*/**.jpeg
-*/**.jpg
 */**.avi
 */**.mp4
 
