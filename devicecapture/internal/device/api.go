@@ -3,7 +3,7 @@ package device
 import (
 	"bytes"
 	"context"
-	"devicecapture/device/receiver"
+	"devicecapture/internal/device/receiver"
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"

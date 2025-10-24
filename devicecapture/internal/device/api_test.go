@@ -1,7 +1,7 @@
 package device
 
 import (
-	"devicecapture/device/receiver"
+	"devicecapture/internal/device/receiver"
 
 	"context"
 	"errors"
