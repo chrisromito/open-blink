@@ -4,8 +4,8 @@ publisher - Publishes 'start-stream' messages to the MQTT broker for all configu
 package main
 
 import (
-	"devicecapture/config"
-	"devicecapture/pubsub"
+	"devicecapture/internal/config"
+	"devicecapture/internal/pubsub"
 	"encoding/json"
 	"fmt"
 	"log"

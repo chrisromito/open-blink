@@ -2,7 +2,7 @@ package pubsub
 
 import (
 	"context"
-	"devicecapture/device/receiver"
+	"devicecapture/internal/device/receiver"
 	"image"
 	"image/color"
 	"os"

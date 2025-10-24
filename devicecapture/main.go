@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"devicecapture/config"
-	"devicecapture/device"
-	"devicecapture/pubsub"
+	"devicecapture/internal/config"
+	"devicecapture/internal/device"
+	pubsub2 "devicecapture/internal/pubsub"
 	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
@@ -16,18 +16,18 @@ import (
 
 type App struct {
 	conf       *config.Config
-	MqttClient *pubsub.MqttClient
-	Devices    []device.Device
-	DeviceMap  map[string]device.Device
+	MqttClient *pubsub2.MqttClient
+	Devices    []device.CameraDevice
+	DeviceMap  map[string]device.CameraDevice
 }
 
 func (a *App) SetupDevices() error {
 	deviceConfigs := a.conf.Devices
-	deviceMap := make(map[string]device.Device)
-	devices := make([]device.Device, len(deviceConfigs))
+	deviceMap := make(map[string]device.CameraDevice)
+	devices := make([]device.CameraDevice, len(deviceConfigs))
 	for _, dConf := range deviceConfigs {
-		r := pubsub.NewMqttReceiver(a.MqttClient, "/videos")
-		d := device.NewDevice(dConf, r)
+		r := pubsub2.NewMqttReceiver(a.MqttClient, "/videos")
+		d := device.NewCameraDevice(dConf, r)
 		deviceMap[dConf.DeviceId] = d
 		devices = append(devices, d)
 	}
@@ -98,7 +98,7 @@ func main() {
 	//if err != nil {
 	//	log.Fatalf("Error creating MQTT client: %v", err)
 	//}
-	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost)
+	client, cerr := pubsub2.BrokerHelper("go-server", conf.MqttHost)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -108,7 +108,7 @@ func main() {
 	app := App{
 		conf:       conf,
 		MqttClient: &client,
-		Devices:    make([]device.Device, 0),
+		Devices:    make([]device.CameraDevice, 0),
 	}
 	err := app.SetupDevices()
 	if err != nil {

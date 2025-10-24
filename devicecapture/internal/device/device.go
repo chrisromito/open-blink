@@ -2,13 +2,13 @@ package device
 
 import (
 	"context"
-	"devicecapture/config"
-	"devicecapture/device/receiver"
+	"devicecapture/internal/config"
+	"devicecapture/internal/device/receiver"
 	"log"
 	"time"
 )
 
-type Device struct {
+type CameraDevice struct {
 	conf       config.DeviceConfig
 	api        Api
 	FrameRepo  receiver.FrameRepository
@@ -18,8 +18,8 @@ type Device struct {
 	StoppedAt  int64
 }
 
-func NewDevice(conf config.DeviceConfig, repo receiver.FrameRepository) Device {
-	return Device{
+func NewCameraDevice(conf config.DeviceConfig, repo receiver.FrameRepository) CameraDevice {
+	return CameraDevice{
 		conf:       conf,
 		api:        NewApi(conf.DeviceId, conf.DeviceUrl),
 		FrameRepo:  repo,
@@ -28,11 +28,11 @@ func NewDevice(conf config.DeviceConfig, repo receiver.FrameRepository) Device {
 	}
 }
 
-func (d *Device) Url() string {
+func (d *CameraDevice) Url() string {
 	return d.api.Url
 }
 
-func (d *Device) Start(ctx context.Context) error {
+func (d *CameraDevice) Start(ctx context.Context) error {
 	defer d.Stop()
 	imgChan := make(chan receiver.Frame, 64)
 	defer close(imgChan)
@@ -87,7 +87,7 @@ func (d *Device) Start(ctx context.Context) error {
 	return nil
 }
 
-func (d *Device) Stop() {
+func (d *CameraDevice) Stop() {
 	err := d.FrameRepo.EndSession()
 	if err != nil {
 		log.Printf("Error ending session: %v", err)
@@ -102,10 +102,10 @@ func (d *Device) Stop() {
 	log.Printf("Stopped device: %s", d.conf.DeviceId)
 }
 
-func (d *Device) IsConnected() bool {
+func (d *CameraDevice) IsConnected() bool {
 	return d.Connecting
 }
 
-func (d *Device) IsCapturing() bool {
+func (d *CameraDevice) IsCapturing() bool {
 	return d.Capturing
 }

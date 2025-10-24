@@ -1,8 +1,9 @@
+// Package pubsub receiver corresponds with device/receiver interface
 package pubsub
 
 import (
 	"context"
-	"devicecapture/device/receiver"
+	"devicecapture/internal/device/receiver"
 	"encoding/json"
 	"fmt"
 	"image/jpeg"
@@ -12,6 +13,7 @@ import (
 	"time"
 )
 
+// MqttReceiver implements receiver.FrameRepository
 type MqttReceiver struct {
 	client    *MqttClient
 	videoPath string
@@ -35,6 +37,7 @@ func NewMqttReceiver(client *MqttClient, videoPath string) *MqttReceiver {
 	}
 }
 
+// StartSession Start a receiver.CaptureSession
 func (r *MqttReceiver) StartSession(deviceId string) (*receiver.CaptureSession, error) {
 	ts := time.Now().UnixMilli()
 	s := receiver.CaptureSession{DeviceId: deviceId, StartedAt: ts}
