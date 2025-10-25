@@ -10,6 +10,7 @@ services:
       - mosquitto
     environment:
       - MQTT_HOST='192.168.0.33'
+      - DB_URL='postgres://chris:meow@192.168.0.33:5432/openblink'
     restart: unless-stopped
   mock_device:
     build:
