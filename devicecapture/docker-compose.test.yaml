@@ -1,0 +1,27 @@
+services:
+  devicecapture:
+    build: ./devicecapture
+    container_name: devicecapture
+    networks:
+      - openblink
+    volumes:
+      - ./videos:/videos
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_HOST='192.168.0.33'
+    restart: unless-stopped
+  mock_device:
+    build:
+      context: ./devicecapture
+      dockerfile: mockdevice.Dockerfile
+    container_name: mock_device
+    networks:
+      - openblink
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+networks:
+  openblink:
+    driver: bridge

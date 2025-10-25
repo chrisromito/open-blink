@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 import torchvision.transforms as T
-from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN
+from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN, FasterRCNN_ResNet50_FPN_V2_Weights
 from PIL import Image, ImageDraw
 
 from detector.detection_types import Detection, BatchResult, DetectionResult
@@ -29,7 +29,7 @@ COCO_CLASSES = [
 
 
 def get_model() -> FasterRCNN:
-    model = fasterrcnn_resnet50_fpn_v2(weights='DEFAULT')
+    model = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT, box_score_thresh=0.9)
     model.eval()  # Set to evaluation mode for inference
     return model
 
