@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	MqttHost string
+	DbUrl    string
 	Devices  []DeviceConfig
 }
 
@@ -59,10 +60,15 @@ func NewConfig() *Config {
 	if mh == "" {
 		mh = "tcp://0.0.0.0:1883"
 	}
+	db := os.Getenv("DB_URL")
+	if db == "" {
+		db = "postgres://postgres:postgres@localhost:5432/postgres"
+	}
 	log.Printf("MQTT_HOST: %s", mh)
 	devices, _ := LoadDevices()
 	return &Config{
 		MqttHost: mh,
 		Devices:  devices,
+		DbUrl:    db,
 	}
 }
