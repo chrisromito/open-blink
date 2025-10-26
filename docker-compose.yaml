@@ -12,7 +12,9 @@ services:
       - MQTT_HOST='mosquitto'
     restart: unless-stopped
   devicecapture:
-    build: ./devicecapture
+    build:
+      context: ./devicecapture
+      dockerfile: docker/Dockerfile
     container_name: devicecapture
     networks:
       - openblink
@@ -20,13 +22,15 @@ services:
       - ./videos:/videos
     depends_on:
       - mosquitto
+      - postgres
     environment:
-      - MQTT_HOST='192.168.0.33'
+      - MQTT_HOST='mosquitto'
+      - DB_URL='postgres://postgres:postgres@postgres:5432/openblink'
     restart: unless-stopped
   mock_device:
     build:
       context: ./devicecapture
-      dockerfile: mockdevice.Dockerfile
+      dockerfile: docker/mockdevice.Dockerfile
     container_name: mock_device
     networks:
       - openblink
@@ -46,7 +50,27 @@ services:
       - ./mosquitto/data:/mosquitto/data:rw
       - ./mosquitto/log:/mosquitto/log:rw
     restart: unless-stopped
-
+  postgres:
+    image: postgres:16-alpine3.22
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    networks:
+      - openblink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./devicecapture/internal/postgres/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./devicecapture/docker/init-databases.sql:/docker-entrypoint-initdb.d/02-init-databases.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 networks:
   openblink:
     driver: bridge
+volumes:
+  postgres_data:
