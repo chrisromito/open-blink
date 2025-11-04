@@ -10,14 +10,14 @@ WHERE id = $1
 LIMIT 1;
 
 -- name: CreateTestDevice :one
-INSERT INTO devices (name, device_url)
-VALUES ($1, $2)
+INSERT INTO devices (id, name, device_url)
+VALUES (DEFAULT, 'mockdevice', 'http://localhost:8080')
 RETURNING *;
 
 
 -- name: CreateDevice :one
-INSERT INTO devices (name, device_url)
-VALUES ($1, $2)
+INSERT INTO devices (id, name, device_url)
+VALUES (DEFAULT, $1, $2)
 RETURNING *;
 
 -- name: UpdateDevice :exec
@@ -44,9 +44,15 @@ FROM device_heartbeats
 WHERE created_at >= $1
 ORDER BY created_at DESC;
 
+-- name: LatestBeats :many
+SELECT DISTINCT(device_heartbeats.device_id), device_heartbeats.created_at, devices.*
+FROM device_heartbeats
+         JOIN devices ON devices.id = device_heartbeats.device_id
+ORDER BY device_heartbeats.created_at DESC;
+
 -- name: RecordBeat :one
-INSERT INTO device_heartbeats (device_id)
-VALUES ($1)
+INSERT INTO device_heartbeats (id, device_id, created_at)
+VALUES (DEFAULT, $1, now())
 RETURNING *;
 
 
@@ -60,8 +66,8 @@ WHERE device_id = $1;
 -- Detections
 -----------------
 -- name: CreateDetection :one
-INSERT INTO detections (device_id, label, confidence)
-VALUES ($1, $2, $3)
+INSERT INTO detections (id, device_id, label, confidence)
+VALUES (DEFAULT, $1, $2, $3)
 RETURNING *;
 
 -- name: GetDetectionsAfter :many

@@ -7,13 +7,12 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 )
 
 const createDetection = `-- name: CreateDetection :one
-INSERT INTO detections (device_id, label, confidence)
-VALUES ($1, $2, $3)
+INSERT INTO detections (id, device_id, label, confidence)
+VALUES (DEFAULT, $1, $2, $3)
 RETURNING id, device_id, created_at, label, confidence
 `
 
@@ -40,8 +39,8 @@ func (q *Queries) CreateDetection(ctx context.Context, arg CreateDetectionParams
 }
 
 const createDevice = `-- name: CreateDevice :one
-INSERT INTO devices (name, device_url)
-VALUES ($1, $2)
+INSERT INTO devices (id, name, device_url)
+VALUES (DEFAULT, $1, $2)
 RETURNING id, name, device_url
 `
 
@@ -58,18 +57,13 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 }
 
 const createTestDevice = `-- name: CreateTestDevice :one
-INSERT INTO devices (name, device_url)
-VALUES ($1, $2)
+INSERT INTO devices (id, name, device_url)
+VALUES (DEFAULT, 'mockdevice', 'http://localhost:8080')
 RETURNING id, name, device_url
 `
 
-type CreateTestDeviceParams struct {
-	Name      string `db:"name" json:"name"`
-	DeviceUrl string `db:"device_url" json:"device_url"`
-}
-
-func (q *Queries) CreateTestDevice(ctx context.Context, arg CreateTestDeviceParams) (Device, error) {
-	row := q.db.QueryRow(ctx, createTestDevice, arg.Name, arg.DeviceUrl)
+func (q *Queries) CreateTestDevice(ctx context.Context) (Device, error) {
+	row := q.db.QueryRow(ctx, createTestDevice)
 	var i Device
 	err := row.Scan(&i.ID, &i.Name, &i.DeviceUrl)
 	return i, err
@@ -104,7 +98,7 @@ WHERE created_at >= $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetDetectionsAfter(ctx context.Context, createdAt pgtype.Timestamptz) ([]Detection, error) {
+func (q *Queries) GetDetectionsAfter(ctx context.Context, createdAt time.Time) ([]Detection, error) {
 	rows, err := q.db.Query(ctx, getDetectionsAfter, createdAt)
 	if err != nil {
 		return nil, err
@@ -137,7 +131,7 @@ WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetDeviceById(ctx context.Context, id int64) (Device, error) {
+func (q *Queries) GetDeviceById(ctx context.Context, id int32) (Device, error) {
 	row := q.db.QueryRow(ctx, getDeviceById, id)
 	var i Device
 	err := row.Scan(&i.ID, &i.Name, &i.DeviceUrl)
@@ -153,8 +147,8 @@ ORDER BY created_at DESC
 `
 
 type GetDeviceDetectionsAfterParams struct {
-	DeviceID  int64              `db:"device_id" json:"device_id"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	DeviceID  int64     `db:"device_id" json:"device_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *Queries) GetDeviceDetectionsAfter(ctx context.Context, arg GetDeviceDetectionsAfterParams) ([]Detection, error) {
@@ -193,8 +187,8 @@ ORDER BY created_at DESC
 `
 
 type GetDeviceHeartBeatsParams struct {
-	DeviceID  int64              `db:"device_id" json:"device_id"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	DeviceID  int64     `db:"device_id" json:"device_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 // ---------------
@@ -253,7 +247,7 @@ WHERE created_at >= $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) HeartBeatsAfter(ctx context.Context, createdAt pgtype.Timestamptz) ([]DeviceHeartbeat, error) {
+func (q *Queries) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]DeviceHeartbeat, error) {
 	rows, err := q.db.Query(ctx, heartBeatsAfter, createdAt)
 	if err != nil {
 		return nil, err
@@ -273,9 +267,50 @@ func (q *Queries) HeartBeatsAfter(ctx context.Context, createdAt pgtype.Timestam
 	return items, nil
 }
 
+const latestBeats = `-- name: LatestBeats :many
+SELECT DISTINCT(device_heartbeats.device_id), device_heartbeats.created_at, devices.id, devices.name, devices.device_url
+FROM device_heartbeats
+         JOIN devices ON devices.id = device_heartbeats.device_id
+ORDER BY device_heartbeats.created_at DESC
+`
+
+type LatestBeatsRow struct {
+	DeviceID  int64     `db:"device_id" json:"device_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID        int32     `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	DeviceUrl string    `db:"device_url" json:"device_url"`
+}
+
+func (q *Queries) LatestBeats(ctx context.Context) ([]LatestBeatsRow, error) {
+	rows, err := q.db.Query(ctx, latestBeats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LatestBeatsRow{}
+	for rows.Next() {
+		var i LatestBeatsRow
+		if err := rows.Scan(
+			&i.DeviceID,
+			&i.CreatedAt,
+			&i.ID,
+			&i.Name,
+			&i.DeviceUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordBeat = `-- name: RecordBeat :one
-INSERT INTO device_heartbeats (device_id)
-VALUES ($1)
+INSERT INTO device_heartbeats (id, device_id, created_at)
+VALUES (DEFAULT, $1, now())
 RETURNING id, device_id, created_at
 `
 
@@ -294,7 +329,7 @@ WHERE id = $1
 `
 
 type UpdateDeviceParams struct {
-	ID        int64  `db:"id" json:"id"`
+	ID        int32  `db:"id" json:"id"`
 	Name      string `db:"name" json:"name"`
 	DeviceUrl string `db:"device_url" json:"device_url"`
 }

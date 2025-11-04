@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -78,7 +79,9 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 			done <- err
 			return
 		}
-		defer resp.Body.Close()
+		defer func(Body io.ReadCloser) {
+			_ = Body.Close()
+		}(resp.Body)
 		if resp.StatusCode != http.StatusOK {
 			done <- fmt.Errorf("status code is not OK: %v (%s)", resp.StatusCode, resp.Status)
 			return
@@ -121,6 +124,5 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 			}
 		}
 	}()
-	<-done
-	return nil
+	return <-done
 }
