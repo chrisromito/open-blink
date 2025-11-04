@@ -5,25 +5,25 @@
 package db
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 )
 
 type Detection struct {
-	ID         int64              `db:"id" json:"id"`
-	DeviceID   int64              `db:"device_id" json:"device_id"`
-	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	Label      string             `db:"label" json:"label"`
-	Confidence float64            `db:"confidence" json:"confidence"`
+	ID         int32     `db:"id" json:"id"`
+	DeviceID   int64     `db:"device_id" json:"device_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	Label      string    `db:"label" json:"label"`
+	Confidence float64   `db:"confidence" json:"confidence"`
 }
 
 type Device struct {
-	ID        int64  `db:"id" json:"id"`
+	ID        int32  `db:"id" json:"id"`
 	Name      string `db:"name" json:"name"`
 	DeviceUrl string `db:"device_url" json:"device_url"`
 }
 
 type DeviceHeartbeat struct {
-	ID        int64              `db:"id" json:"id"`
-	DeviceID  int64              `db:"device_id" json:"device_id"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ID        int32     `db:"id" json:"id"`
+	DeviceID  int64     `db:"device_id" json:"device_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }

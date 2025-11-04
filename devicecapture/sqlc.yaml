@@ -10,3 +10,32 @@ sql:
         emit_db_tags: true
         emit_json_tags: true
         emit_empty_slices: true
+        overrides:
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+            nullable: true
+          - db_type: "pg_catalog.varchar"
+            go_type:
+              type: "string"
+            nullable: true
+          - db_type: "pg_catalog.text"
+            go_type:
+              type: "string"
+            nullable: true
+          - db_type: "text"
+            go_type:
+              type: "string"
+            nullable: true
+          - db_type: "pg_catalog.timestamp"
+            go_type:
+              type: "time.Time"
+            nullable: true
+          - db_type: "pg_catalog.timestamp"
+            go_type:
+              type: "time.Time"

@@ -9,7 +9,7 @@ services:
     volumes:
       - ./videos:/videos
     environment:
-      - MQTT_HOST='mosquitto'
+      - MQTT_HOST=mosquitto
     restart: unless-stopped
   devicecapture:
     build:
@@ -24,8 +24,8 @@ services:
       - mosquitto
       - postgres
     environment:
-      - MQTT_HOST='mosquitto'
-      - DB_URL='postgres://postgres:postgres@postgres:5432/openblink'
+      - MQTT_HOST=mosquitto
+      - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
     restart: unless-stopped
   mock_device:
     build:
