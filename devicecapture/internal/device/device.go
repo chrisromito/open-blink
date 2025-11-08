@@ -24,6 +24,12 @@ func NewCameraService(deviceRepo devices.DeviceRepository, frameRepo receiver.Fr
 	return &CameraService{DeviceRepo: deviceRepo, FrameRepo: frameRepo, connectedIds: ids}
 }
 
+func (s *CameraService) IsValidId(deviceId string) bool {
+	_, err := strconv.ParseInt(deviceId, 10, 64)
+	d, err2 := s.DeviceRepo.GetDevice(context.Background(), deviceId)
+	return err == nil && err2 == nil && d != nil
+}
+
 func (s *CameraService) IsStreaming(deviceId string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

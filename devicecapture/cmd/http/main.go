@@ -33,11 +33,15 @@ func main() {
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
+	defer func(client *pubsub.MqttClient) {
+		_ = client.Close()
+	}(&client)
 	if !client.Valid() {
 		log.Fatalf("Failed to connect to a client")
 	}
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
+	defer db.Db.Close()
 	if dberr != nil {
 		log.Fatalf("Error connecting to database: %v", dberr)
 	}
