@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// PgHeartbeatRepo implements devices.DeviceRepo
+// PgHeartbeatRepo implements devices.DeviceRepository
 type PgHeartbeatRepo struct {
 	queries *db.Queries
 }

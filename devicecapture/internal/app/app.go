@@ -13,42 +13,25 @@ import (
 )
 
 type App struct {
-	Conf       *config.Config
-	MqttClient *pubsub.MqttClient
-	Db         *postgres.AppDb
-
-	// FIXME: Make this dynamic (DeviceRepo here?)
-	Devices   []device.CameraDevice
-	DeviceMap map[string]device.CameraDevice
+	Conf          *config.Config
+	MqttClient    *pubsub.MqttClient
+	Db            *postgres.AppDb
+	CameraService *device.CameraService
 }
 
 // NewApp create an App, under the assumption that the MqttClient & AppDb are initialized/connected
-func NewApp(conf *config.Config, mqttClient *pubsub.MqttClient, db *postgres.AppDb) *App {
+func NewApp(conf *config.Config, mqttClient *pubsub.MqttClient, db *postgres.AppDb, cs *device.CameraService) *App {
 	return &App{
-		Conf:       conf,
-		MqttClient: mqttClient,
-		Db:         db,
+		Conf:          conf,
+		MqttClient:    mqttClient,
+		Db:            db,
+		CameraService: cs,
 	}
-}
-
-func (a *App) SetupDevices() error {
-	deviceConfigs := a.Conf.Devices
-	deviceMap := make(map[string]device.CameraDevice)
-	devices := make([]device.CameraDevice, len(deviceConfigs))
-	for _, dConf := range deviceConfigs {
-		r := pubsub.NewMqttReceiver(a.MqttClient, "/videos")
-		d := device.NewCameraDevice(dConf, r)
-		deviceMap[dConf.DeviceId] = d
-		devices = append(devices, d)
-	}
-	log.Printf("Devices: %v", devices)
-	a.Devices = devices
-	a.DeviceMap = deviceMap
-	return nil
 }
 
 func (a *App) SubscribeToStartStreamTopic(ctx context.Context) error {
 	mc := make(chan mqtt.Message)
+	defer close(mc)
 	topics := []string{"start-stream", "motion-detected"}
 	for _, t := range topics {
 		err := a.MqttClient.Subscribe(t, func(_ mqtt.Client, m mqtt.Message) {
@@ -85,13 +68,9 @@ func (a *App) ReceiveStartStreamMessage(m mqtt.Message) error {
 	if err != nil {
 		return err
 	}
-	d, ok := a.DeviceMap[msg.DeviceId]
-	if !ok {
-		return nil
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = d.Start(ctx)
+	err = a.CameraService.StartStream(ctx, msg.DeviceId)
 	if err != nil {
 		return err
 	}

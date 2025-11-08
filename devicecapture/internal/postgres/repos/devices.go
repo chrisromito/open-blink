@@ -4,10 +4,11 @@ import (
 	"context"
 	"devicecapture/internal/device/devices"
 	"devicecapture/internal/postgres/db"
+	"errors"
 	"strconv"
 )
 
-// PgDeviceRepo implements devices.DeviceRepo
+// PgDeviceRepo implements devices.DeviceRepository
 type PgDeviceRepo struct {
 	queries *db.Queries
 }
@@ -18,7 +19,9 @@ func NewPgDeviceRepo(queries *db.Queries) *PgDeviceRepo {
 	}
 }
 
-// GetDevice PgDeviceRepo implements devices.DeviceRepo
+var ErrNotFound = errors.New("record not found")
+
+// GetDevice PgDeviceRepo implements devices.DeviceRepository
 func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId string) (*devices.Device, error) {
 	id, e := strconv.ParseInt(deviceId, 10, 32)
 	if e != nil {
@@ -28,10 +31,13 @@ func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId string) (*device
 	if err != nil {
 		return nil, err
 	}
+	if d.ID == 0 {
+		return nil, ErrNotFound
+	}
 	return dr.dbToDomain(d), nil
 }
 
-// ListDevices PgDeviceRepo implements devices.DeviceRepo
+// ListDevices PgDeviceRepo implements devices.DeviceRepository
 func (dr *PgDeviceRepo) ListDevices(ctx context.Context) ([]*devices.Device, error) {
 	value, err := dr.queries.GetDevices(ctx)
 	if err != nil {
@@ -45,7 +51,7 @@ func (dr *PgDeviceRepo) ListDevices(ctx context.Context) ([]*devices.Device, err
 	return dslice, nil
 }
 
-// CreateDevice PgDeviceRepo implements devices.DeviceRepo
+// CreateDevice PgDeviceRepo implements devices.DeviceRepository
 func (dr *PgDeviceRepo) CreateDevice(ctx context.Context, params devices.CreateDeviceParams) (*devices.Device, error) {
 	d, err := dr.queries.CreateDevice(ctx, db.CreateDeviceParams{Name: params.Name, DeviceUrl: params.DeviceUrl})
 	if err != nil {
@@ -58,7 +64,7 @@ func (dr *PgDeviceRepo) CreateDevice(ctx context.Context, params devices.CreateD
 	}, nil
 }
 
-func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, params devices.UpdateDeviceParams) (*devices.Device, error) {
+func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, deviceId string, params devices.UpdateDeviceParams) (*devices.Device, error) {
 	err := dr.queries.UpdateDevice(ctx, db.UpdateDeviceParams{
 		ID:        params.ID,
 		Name:      params.Name,
