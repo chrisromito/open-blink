@@ -124,5 +124,6 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 			}
 		}
 	}()
-	return <-done
+	v := <-done
+	return v
 }

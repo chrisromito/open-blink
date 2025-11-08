@@ -2,6 +2,7 @@
 package pubsub
 
 import (
+	"bytes"
 	"context"
 	"devicecapture/internal/device/receiver"
 	"encoding/json"
@@ -74,8 +75,8 @@ func (r *MqttReceiver) EndSession() error {
 func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame) error {
 	var wg sync.WaitGroup
 
+	// image publisher
 	wg.Add(1)
-
 	go func() {
 		defer wg.Done()
 		fp := FramePath(r.videoPath, r.Session.StartedAt, r.Session.DeviceId, frame.Timestamp)
@@ -98,6 +99,25 @@ func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame) error {
 		if err != nil {
 			return
 		}
+	}()
+
+	// image-stream publisher
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var buf bytes.Buffer
+		err := jpeg.Encode(&buf, frame.Image, nil)
+		if err != nil {
+			log.Printf("failed to encode JPEG frame")
+			return
+		}
+		// Publish to the "image-stream/%s" topic
+		topic := fmt.Sprintf("image-stream/%s", r.Session.DeviceId)
+		err = r.client.Publish(topic, buf.Bytes())
+		if err != nil {
+			log.Printf("failed to publish to %s", topic)
+		}
+		return
 	}()
 
 	wg.Wait()

@@ -19,7 +19,7 @@ type UpdateDeviceParams struct {
 	DeviceUrl string `json:"device_url"`
 }
 
-type DeviceRepo interface {
+type DeviceRepository interface {
 	CreateDevice(ctx context.Context, params CreateDeviceParams) (*Device, error)
 	GetDevice(ctx context.Context, deviceId string) (*Device, error)
 	ListDevices(ctx context.Context) ([]*Device, error)
