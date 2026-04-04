@@ -23,12 +23,16 @@ func main() {
 	if !client.Valid() {
 		log.Fatalf("Failed to connect to a client")
 	}
+	defer func(client *pubsub.MqttClient) {
+		_ = client.Close()
+	}(&client)
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
 	if dberr != nil {
 		log.Fatalf("Error connecting to database: %v", dberr)
 	}
 
+	defer db.Db.Close()
 	//-- Repos
 	queries := db.GetQueries()
 	cameraRepo := repos.NewPgDeviceRepo(queries)

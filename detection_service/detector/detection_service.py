@@ -8,6 +8,7 @@ import paho.mqtt.client as mqtt
 
 from detector.detection_types import DetectionResult, DetectionMeta, BatchResult, DetectionMessage
 from detector.image_detection import process_image, process_images
+from detector.process_image import Processor
 from shared.date_utils import get_epoch
 from shared.json_utils import write_json
 from shared.perf_utils import block_timer
@@ -79,9 +80,9 @@ class DetectionRepo:
 
 class DetectionService:
 
-    def __init__(self, device_id: str, model, repo: DetectionRepo):
+    def __init__(self, device_id: str, processor: Processor, repo: DetectionRepo):
         self.device_id = device_id
-        self.model = model
+        self.processor = processor
         self.repo: DetectionRepo = repo
 
     @classmethod
@@ -114,7 +115,7 @@ class DetectionService:
         return []
 
     @classmethod
-    def receive_in_messages(cls, msgs: list[InMessage], model, repo) -> list[OutMessage]:
+    def receive_in_messages(cls, msgs: list[InMessage], processor: Processor, repo: DetectionRepo) -> list[OutMessage]:
         messages = [m for m in msgs if m.topic.startswith('image/')]
         if len(messages) < 1:
             logger.debug(f'receive_in_messages: no image messages found, returning empty list')
@@ -139,7 +140,7 @@ class DetectionService:
         out_messages: list[OutMessage] = []
         # Process images, grouped by device ID for output cohesion
         for device_id, image_messages in device_message_map.items():
-            instance = cls(device_id, model, repo)
+            instance = cls(device_id, processor, repo)
             detection_results: list[DetectionResult] = instance.receive_image_messages(image_messages)
             group_messages: list[OutMessage] = [
                 repo.result_to_out_message(device_id, dr)
@@ -174,12 +175,16 @@ class DetectionService:
             json.loads(msg.payload.decode())
             for msg in msgs
         ]
-        batch_results: BatchResult = process_images(self.model, [x.get('file_name') for x in data_list])
+
+        # batch_results: BatchResult = process_images(self.model, [x.get('file_name') for x in data_list])
+        batch_results: BatchResult = self.processor.predict_batch([x.get('file_name') for x in data_list])
         results: list[DetectionMessage] = []
         for result in batch_results:
             detections = result.get('detections', [])
+            # Exclude results that don't have detections
             if result.get('image', None) is None or len(detections) < 1:
                 continue
+            # Add the device_id and send it
             results.append(
                 DetectionMessage(
                     in_path=result.get('in_path'),

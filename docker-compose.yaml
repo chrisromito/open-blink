@@ -1,16 +1,16 @@
 services:
-#  blink_detection_service:
-#    container_name: blink_detection_service
-#    build: ./detection_service
-#    depends_on:
-#      - mosquitto
-#    networks:
-#      - openblink
-#    volumes:
-#      - ./videos:/videos
-#    environment:
-#      - MQTT_HOST=mosquitto
-#    restart: unless-stopped
+  blink_detection_service:
+    container_name: blink_detection_service
+    build: ./detection_service
+    depends_on:
+      - mosquitto
+    networks:
+      - openblink
+    volumes:
+      - ./videos:/videos
+    environment:
+      - MQTT_HOST=mosquitto
+    restart: unless-stopped
   devicecapture:
     build:
       context: ./devicecapture
