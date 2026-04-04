@@ -21,7 +21,7 @@ func NewConfig() *Config {
 	}
 	db := os.Getenv("DB_URL")
 	if db == "" {
-		db = "postgres://postgres:postgres@localhost:5432/postgres"
+		db = "postgres://postgres:postgres@localhost:5432/openblink"
 	}
 	log.Printf("MQTT_HOST: %s", mh)
 	return &Config{

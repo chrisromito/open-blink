@@ -40,6 +40,7 @@ func (a *App) SubscribeToStartStreamTopic(ctx context.Context) error {
 	topics := []string{"start-stream", "motion-detected"}
 	for _, t := range topics {
 		err := a.MqttClient.Subscribe(t, func(_ mqtt.Client, m mqtt.Message) {
+			log.Print("devicecapture -> subscribe -> pushing message to channel")
 			mc <- m
 		})
 		if err != nil {
@@ -67,13 +68,14 @@ type StartStreamMessage struct {
 }
 
 func (a *App) ReceiveStartStreamMessage(m mqtt.Message) error {
+	log.Print("devicecapture.app -> ReceiveStartStreamMessage()")
 	value := m.Payload()
 	var msg StartStreamMessage
 	err := json.Unmarshal(value, &msg)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 	defer cancel()
 	err = a.CameraService.StartStream(ctx, msg.DeviceId)
 	if err != nil {
