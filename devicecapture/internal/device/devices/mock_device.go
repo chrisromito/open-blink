@@ -3,21 +3,26 @@ package devices
 import (
 	"context"
 	"errors"
-	"strconv"
+	"os"
 	"sync"
 )
 
 func GetMockDevice() Device {
+	mockUrl := os.Getenv("MOCK_DEVICE_URL")
+	if mockUrl == "" {
+		mockUrl = "http://0.0.0.0:8080"
+	}
+
 	return Device{
-		ID:        1,
+		ID:        int64(1),
 		Name:      "mockdevice",
-		DeviceUrl: "http://localhost:8080",
+		DeviceUrl: mockUrl,
 	}
 }
 
 func GetTestFailDevice() Device {
 	return Device{
-		ID:        -1,
+		ID:        int64(-1),
 		Name:      "fail",
 		DeviceUrl: "http://localhost:1234",
 	}
@@ -43,7 +48,7 @@ func (mr *MockRepo) CreateDevice(ctx context.Context, params CreateDeviceParams)
 	defer mr.mu.Unlock()
 	dev := GetMockDevice()
 	d := &dev
-	d.ID = int32(len(mr.ds) + 1)
+	d.ID = int64(len(mr.ds) + 1)
 	d.Name = params.Name
 	d.DeviceUrl = params.DeviceUrl
 	mr.ds = append(mr.ds, d)
@@ -51,12 +56,11 @@ func (mr *MockRepo) CreateDevice(ctx context.Context, params CreateDeviceParams)
 }
 
 // GetDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) GetDevice(ctx context.Context, deviceId string) (*Device, error) {
+func (mr *MockRepo) GetDevice(ctx context.Context, deviceId int64) (*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
-		dId := strconv.Itoa(int(d.ID))
-		if dId == deviceId {
+		if d.ID == deviceId {
 			return d, nil
 		}
 	}
@@ -75,12 +79,11 @@ func (mr *MockRepo) ListDevices(ctx context.Context) ([]*Device, error) {
 }
 
 // UpdateDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) UpdateDevice(ctx context.Context, deviceId string, params UpdateDeviceParams) (*Device, error) {
+func (mr *MockRepo) UpdateDevice(ctx context.Context, params UpdateDeviceParams) (*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
-		dId := strconv.Itoa(int(d.ID))
-		if dId == deviceId {
+		if d.ID == params.ID {
 			d.Name = params.Name
 			d.DeviceUrl = params.DeviceUrl
 			return d, nil

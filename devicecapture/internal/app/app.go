@@ -4,6 +4,7 @@ import (
 	"context"
 	"devicecapture/internal/config"
 	"devicecapture/internal/device"
+	"devicecapture/internal/device/devices"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/pubsub"
 	"encoding/json"
@@ -17,15 +18,19 @@ type App struct {
 	MqttClient    *pubsub.MqttClient
 	Db            *postgres.AppDb
 	CameraService *device.CameraService
+	HeartbeatRepo devices.HeartbeatRepo
+	DetectionRepo devices.DetectionRepo
 }
 
 // NewApp create an App, under the assumption that the MqttClient & AppDb are initialized/connected
-func NewApp(conf *config.Config, mqttClient *pubsub.MqttClient, db *postgres.AppDb, cs *device.CameraService) *App {
+func NewApp(conf *config.Config, mqttClient *pubsub.MqttClient, db *postgres.AppDb, cs *device.CameraService, hb devices.HeartbeatRepo, dr devices.DetectionRepo) *App {
 	return &App{
 		Conf:          conf,
 		MqttClient:    mqttClient,
 		Db:            db,
 		CameraService: cs,
+		HeartbeatRepo: hb,
+		DetectionRepo: dr,
 	}
 }
 

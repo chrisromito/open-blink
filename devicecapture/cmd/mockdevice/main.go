@@ -26,6 +26,7 @@ func getTestImage() []byte {
 	var buf bytes.Buffer
 	err := jpeg.Encode(&buf, img, nil)
 	if err != nil {
+		log.Printf("getTestImage -> err: %v", err)
 		return nil
 	}
 	return buf.Bytes()
@@ -46,30 +47,37 @@ func addLabel(img *image.RGBA, x, y int, label string) {
 
 func mjpegHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-
+	log.Print("mockdevice -> mjpegHandler")
 	boundary := "\r\n--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+	//ctx := r.Context()
 	//img := getImageFrame()
 	for {
-
 		n, err := io.WriteString(w, boundary)
 		if err != nil || n != len(boundary) {
-			log.Printf("TestServer -> Error writing boundary: %v", err)
+			log.Printf("mockdevice -> Error writing boundary: %v", err)
 			return
 		}
 		img := getTestImage()
 		_, err = w.Write(img)
 		if err != nil {
-			log.Printf("TestServer -> Error writing image: %v", err)
+			log.Printf("mockdevice -> client disconnected, error writing image: %v, ", err)
 			return
 		}
 
 		n, err = io.WriteString(w, "\r\n")
 		if err != nil || n != 2 {
-			log.Printf("TestServer -> Error writing boundary: %v", err)
+			log.Printf("mockdevice -> Error writing boundary: %v", err)
 			return
+		} else {
+			log.Printf("mockdevice -> successfully sent frame")
 		}
 		// Optional: control frame rate
 		time.Sleep(100 * time.Millisecond)
+		log.Printf("mockdevice -> sleeping before we continue the loop...")
+		//select {
+		//case <-ctx.Done():
+		//	return
+		//}
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"devicecapture/internal/device/devices"
 	"devicecapture/internal/postgres/db"
 	"errors"
-	"strconv"
 )
 
 // PgDeviceRepo implements devices.DeviceRepository
@@ -22,12 +21,8 @@ func NewPgDeviceRepo(queries *db.Queries) *PgDeviceRepo {
 var ErrNotFound = errors.New("record not found")
 
 // GetDevice PgDeviceRepo implements devices.DeviceRepository
-func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId string) (*devices.Device, error) {
-	id, e := strconv.ParseInt(deviceId, 10, 32)
-	if e != nil {
-		return nil, e
-	}
-	d, err := dr.queries.GetDeviceById(ctx, int32(id))
+func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId int64) (*devices.Device, error) {
+	d, err := dr.queries.GetDeviceById(ctx, deviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +59,7 @@ func (dr *PgDeviceRepo) CreateDevice(ctx context.Context, params devices.CreateD
 	}, nil
 }
 
-func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, deviceId string, params devices.UpdateDeviceParams) (*devices.Device, error) {
+func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, params devices.UpdateDeviceParams) (*devices.Device, error) {
 	err := dr.queries.UpdateDevice(ctx, db.UpdateDeviceParams{
 		ID:        params.ID,
 		Name:      params.Name,

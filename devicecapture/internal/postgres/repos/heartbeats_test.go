@@ -4,7 +4,6 @@ import (
 	"context"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"strconv"
 	"testing"
 )
 
@@ -16,29 +15,28 @@ func Test_Create_Heartbeats(t *testing.T) {
 	repo := NewPgHeartbeatRepo(appDb.GetQueries())
 	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
 	a.NoError(deviceErr)
-	deviceId := strconv.Itoa(int(testDevice.ID))
 
 	for range 10 {
 		t.Run("create_heartbeat", func(t *testing.T) {
-			hb, err := repo.RecordBeat(context.Background(), deviceId)
+			hb, err := repo.RecordBeat(context.Background(), testDevice.ID)
 			a.NoError(err, "We can record device heartbeats")
 			a.NotNil(hb)
-			a.Equal(int32(hb.DeviceID), testDevice.ID)
+			a.Equal(hb.DeviceID, testDevice.ID)
 		})
 	}
 
 	getTests := []struct {
-		deviceId  string
+		deviceId  int64
 		wantEmpty bool
 		name      string
 	}{
 		{
-			deviceId:  deviceId,
+			deviceId:  testDevice.ID,
 			wantEmpty: false,
 			name:      "valid device",
 		},
 		{
-			deviceId:  "fail",
+			deviceId:  int64(-1),
 			wantEmpty: true,
 			name:      "invalid device",
 		},
@@ -56,7 +54,7 @@ func Test_Create_Heartbeats(t *testing.T) {
 	}
 
 	t.Run("delete_beats", func(t *testing.T) {
-		err := repo.DeleteBeats(context.Background(), deviceId)
+		err := repo.DeleteBeats(context.Background(), testDevice.ID)
 		a.NoError(err, "heartbeats can be deleted from the DB")
 	})
 }

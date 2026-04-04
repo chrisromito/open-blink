@@ -1,13 +1,13 @@
 create table devices
 (
-    id         SERIAL PRIMARY KEY,
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name       varchar(250) not null,
     device_url varchar(250) not null
 );
 
 create table device_heartbeats
 (
-    id         SERIAL PRIMARY KEY,
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     device_id  bigint                                 not null
         constraint device_heartbeats_device__fk
             references devices
@@ -23,7 +23,7 @@ create index device_heartbeats__device_id__idx
 
 create table detections
 (
-    id         SERIAL PRIMARY KEY,
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     device_id  bigint       not null
         constraint detections_device__fk
             references devices

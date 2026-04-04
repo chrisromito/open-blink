@@ -11,7 +11,7 @@ LIMIT 1;
 
 -- name: CreateTestDevice :one
 INSERT INTO devices (id, name, device_url)
-VALUES (DEFAULT, 'mockdevice', 'http://localhost:8080')
+VALUES (DEFAULT, 'mockdevice', 'http://mock_device:8080')
 RETURNING *;
 
 

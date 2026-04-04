@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-const testDatabaseURL = "postgres://postgres:postgres@localhost:5432/test_openblink"
-
 func TestPingTestDb(t *testing.T) {
 	appDb, err := NewTestAppDb()
 	assert.NoError(t, err)
