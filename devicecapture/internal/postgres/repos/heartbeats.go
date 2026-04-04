@@ -4,11 +4,10 @@ import (
 	"context"
 	"devicecapture/internal/device/devices"
 	"devicecapture/internal/postgres/db"
-	"strconv"
 	"time"
 )
 
-// PgHeartbeatRepo implements devices.DeviceRepository
+// PgHeartbeatRepo implements devices.HeartbeatRepo
 type PgHeartbeatRepo struct {
 	queries *db.Queries
 }
@@ -20,58 +19,53 @@ func NewPgHeartbeatRepo(queries *db.Queries) *PgHeartbeatRepo {
 }
 
 // GetDeviceHeartBeats get all heartbeats for a given device
-func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(ctx context.Context, deviceId string) ([]devices.Heartbeat, error) {
-	id, err := strconv.ParseInt(deviceId, 10, 64)
+func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]*devices.Heartbeat, error) {
 	hbs, err := hb.queries.GetDeviceHeartBeats(ctx, db.GetDeviceHeartBeatsParams{
-		DeviceID:  id,
+		DeviceID:  deviceId,
 		CreatedAt: startOfDay(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	var dhbs []devices.Heartbeat
+	var dhbs []*devices.Heartbeat
 	for _, d := range hbs {
 		idevice := hb.dbToDomain(d)
-		dhbs = append(dhbs, *idevice)
+		dhbs = append(dhbs, idevice)
 	}
 	return dhbs, nil
 }
 
 // HeartBeatsAfter get all heartbeats after a given time
-func (hb *PgHeartbeatRepo) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]devices.Heartbeat, error) {
+func (hb *PgHeartbeatRepo) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]*devices.Heartbeat, error) {
 	hbs, err := hb.queries.HeartBeatsAfter(ctx, createdAt)
 	if err != nil {
 		return nil, err
 	}
-	var dhbs []devices.Heartbeat
+	var dhbs []*devices.Heartbeat
 	for _, d := range hbs {
 		idevice := hb.dbToDomain(d)
-		dhbs = append(dhbs, *idevice)
+		dhbs = append(dhbs, idevice)
 	}
 	return dhbs, nil
 }
 
 // LatestBeats get latest heartbeats for individual devices
-func (hb *PgHeartbeatRepo) LatestBeats(ctx context.Context) ([]devices.LatestBeatsRow, error) {
+func (hb *PgHeartbeatRepo) LatestBeats(ctx context.Context) ([]*devices.LatestBeatsRow, error) {
 	rows, err := hb.queries.LatestBeats(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var dslice []devices.LatestBeatsRow
+	var dslice []*devices.LatestBeatsRow
 	for _, d := range rows {
 		idevice := hb.latestToDomain(d)
-		dslice = append(dslice, *idevice)
+		dslice = append(dslice, idevice)
 	}
 	return dslice, nil
 }
 
 // RecordBeat create a DeviceHeartBeat record for a given device, using the current timestamp
-func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId string) (*devices.Heartbeat, error) {
-	id, err := strconv.ParseInt(deviceId, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	record, err := hb.queries.RecordBeat(ctx, id)
+func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId int64) (*devices.Heartbeat, error) {
+	record, err := hb.queries.RecordBeat(ctx, deviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +73,8 @@ func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId string) (*de
 }
 
 // DeleteBeats delete heart beat records for a given device
-func (hb *PgHeartbeatRepo) DeleteBeats(ctx context.Context, deviceId string) error {
-	id, err := strconv.ParseInt(deviceId, 10, 64)
-	if err != nil {
-		return err
-	}
-	return hb.queries.DeleteBeats(ctx, id)
+func (hb *PgHeartbeatRepo) DeleteBeats(ctx context.Context, deviceId int64) error {
+	return hb.queries.DeleteBeats(ctx, deviceId)
 }
 
 func (hb *PgHeartbeatRepo) dbToDomain(d db.DeviceHeartbeat) *devices.Heartbeat {

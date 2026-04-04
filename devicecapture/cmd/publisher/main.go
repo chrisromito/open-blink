@@ -4,66 +4,63 @@ publisher - Publishes 'start-stream' messages to the MQTT broker for all configu
 package main
 
 import (
+	"context"
 	"devicecapture/internal/config"
+	"devicecapture/internal/postgres"
+	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"time"
-
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 const (
-	broker   = "tcp://0.0.0.0:1883"
 	clientID = "go-mqtt-publisher"
 	topic    = "start-stream"
 )
-
-var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
-	fmt.Println("Connected to MQTT Broker")
-}
-
-var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
-	fmt.Printf("Connection lost: %v", err)
-}
 
 type StartStreamMessage struct {
 	DeviceId string `json:"device_id"`
 }
 
 func main() {
-	deviceConfigs, dErr := config.LoadDevices()
-	if dErr != nil {
-		log.Fatalf("Error loading devices: %v", dErr)
+	conf := config.NewConfig()
+	client, cerr := pubsub.BrokerHelper(clientID, conf.MqttHost)
+	if cerr != nil {
+		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(broker)
-	opts.SetClientID(clientID)
-	opts.OnConnect = connectHandler
-	opts.OnConnectionLost = connectLostHandler
-
-	client, clientErr := pubsub.NewDeviceClient(clientID, broker)
-	if clientErr != nil {
-		log.Fatalf("Error creating MQTT client: %v", clientErr)
+	if !client.Valid() {
+		log.Fatalf("Failed to connect to a client")
+	}
+	db := postgres.NewAppDb()
+	dberr := db.Connect(conf.DbUrl)
+	if dberr != nil {
+		log.Fatalf("Error connecting to database: %v", dberr)
 	}
 
-	for _, deviceConfig := range deviceConfigs {
+	//-- Repos
+	cameraRepo := repos.NewPgDeviceRepo(db.GetQueries())
+	ctx := context.Background()
+	devices, camErr := cameraRepo.ListDevices(ctx)
+	if camErr != nil {
+		log.Fatalf("error listing devices %v", camErr)
+	}
+	for _, d := range devices {
 		payload := StartStreamMessage{
-			DeviceId: deviceConfig.DeviceId,
+			DeviceId: d.StringId(),
 		}
 		message, err := json.Marshal(payload)
 		if err != nil {
-			log.Fatalf("Error marshalling message: %v", err)
+			log.Fatalf("error marhsalling message: %v", err)
 		}
-		fmt.Printf("Publishing message: %s\n", message)
 		err = client.Publish(topic, message)
 		if err != nil {
 			log.Fatalf("Error publishing message: %v", err)
 		}
 		fmt.Printf("Published message: %s\n", message)
-		time.Sleep(1 * time.Second)
+
 	}
 }
 

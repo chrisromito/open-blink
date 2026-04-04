@@ -9,7 +9,7 @@ import (
 )
 
 type Detection struct {
-	ID         int32     `db:"id" json:"id"`
+	ID         int64     `db:"id" json:"id"`
 	DeviceID   int64     `db:"device_id" json:"device_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	Label      string    `db:"label" json:"label"`
@@ -17,13 +17,13 @@ type Detection struct {
 }
 
 type Device struct {
-	ID        int32  `db:"id" json:"id"`
+	ID        int64  `db:"id" json:"id"`
 	Name      string `db:"name" json:"name"`
 	DeviceUrl string `db:"device_url" json:"device_url"`
 }
 
 type DeviceHeartbeat struct {
-	ID        int32     `db:"id" json:"id"`
+	ID        int64     `db:"id" json:"id"`
 	DeviceID  int64     `db:"device_id" json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }

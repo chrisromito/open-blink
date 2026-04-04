@@ -33,20 +33,20 @@ func (d *PgDetectionRepo) CreateDetection(ctx context.Context, params devices.Cr
 }
 
 // GetDetectionsAfter get all device detections after the specified point in time
-func (d *PgDetectionRepo) GetDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]devices.Detection, error) {
+func (d *PgDetectionRepo) GetDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]*devices.Detection, error) {
 	value, err := d.queries.GetDetectionsAfter(ctx, params.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
-	var detections []devices.Detection
+	var detections []*devices.Detection
 	for _, detection := range value {
-		detections = append(detections, *d.dbToDomain(detection))
+		detections = append(detections, d.dbToDomain(detection))
 	}
 	return detections, nil
 }
 
 // GetDeviceDetectionsAfter get detections for a given device, after the specified point in time
-func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]devices.Detection, error) {
+func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]*devices.Detection, error) {
 	dbParams, err := d.toDbQueryParams(params)
 	if err != nil {
 		return nil, err
@@ -55,11 +55,21 @@ func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params d
 	if err2 != nil {
 		return nil, err2
 	}
-	var detections []devices.Detection
+	var detections []*devices.Detection
 	for _, detection := range value {
-		detections = append(detections, *d.dbToDomain(detection))
+		detections = append(detections, d.dbToDomain(detection))
 	}
 	return detections, nil
+}
+
+// DeleteDetections deletes detection records for a given deviceId
+func (d *PgDetectionRepo) DeleteDetections(ctx context.Context, deviceId string) error {
+	id, err := strconv.ParseInt(deviceId, 10, 64)
+	if err != nil {
+		return err
+	}
+	err = d.queries.DeleteDetections(ctx, id)
+	return err
 }
 
 // dbToDomain convert a db.Detection to a devices.Detection

@@ -131,7 +131,7 @@ WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetDeviceById(ctx context.Context, id int32) (Device, error) {
+func (q *Queries) GetDeviceById(ctx context.Context, id int64) (Device, error) {
 	row := q.db.QueryRow(ctx, getDeviceById, id)
 	var i Device
 	err := row.Scan(&i.ID, &i.Name, &i.DeviceUrl)
@@ -277,7 +277,7 @@ ORDER BY device_heartbeats.created_at DESC
 type LatestBeatsRow struct {
 	DeviceID  int64     `db:"device_id" json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	ID        int32     `db:"id" json:"id"`
+	ID        int64     `db:"id" json:"id"`
 	Name      string    `db:"name" json:"name"`
 	DeviceUrl string    `db:"device_url" json:"device_url"`
 }
@@ -329,7 +329,7 @@ WHERE id = $1
 `
 
 type UpdateDeviceParams struct {
-	ID        int32  `db:"id" json:"id"`
+	ID        int64  `db:"id" json:"id"`
 	Name      string `db:"name" json:"name"`
 	DeviceUrl string `db:"device_url" json:"device_url"`
 }

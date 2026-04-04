@@ -66,6 +66,7 @@ func TestCameraDevice_Start(t *testing.T) {
 		}
 	}()
 	<-ctx.Done()
+	t.Log("TestCameraDevice_Start -> inspecting sessions")
 	session := fr.GetSession()
 	if session == nil {
 		t.Error("starting the camera device sets the session")
@@ -113,7 +114,7 @@ func TestCameraDevice_Stop_EndsSession(t *testing.T) {
 	cam := NewCameraDevice(d, fr)
 	fr.Running = true
 	cam.Stop()
-	if fr.Running {
+	if fr.Running == true {
 		t.Error("camera did not update the repository when it stopped")
 	}
 }

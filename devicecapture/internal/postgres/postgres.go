@@ -54,9 +54,11 @@ func GetQueries(appDb AppDb) *db.Queries {
 	return db.New(appDb.Db)
 }
 
+const testDatabaseURL = "postgres://postgres:postgres@postgres:5432/test_openblink"
+
 func NewTestAppDb() (*AppDb, error) {
 	appDb := NewAppDb()
-	err := appDb.Connect("postgres://postgres:postgres@localhost:5432/test_openblink")
+	err := appDb.Connect(testDatabaseURL)
 	if err != nil {
 		return nil, err
 	}

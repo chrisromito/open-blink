@@ -18,7 +18,7 @@ func TestCreateDetection(t *testing.T) {
 	repo := NewPgDetectionRepo(appDb.GetQueries())
 	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
 	a.NoError(deviceErr)
-	deviceId := int64(testDevice.ID)
+	deviceId := testDevice.ID
 
 	tests := []struct {
 		params  devices.CreateDetectionParams
@@ -65,7 +65,7 @@ func TestGetDetectionsAfter(t *testing.T) {
 	repo := NewPgDetectionRepo(appDb.GetQueries())
 	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
 	a.NoError(deviceErr)
-	deviceId := int64(testDevice.ID)
+	deviceId := testDevice.ID
 
 	t.Run("create_detections_for_query_test", func(t *testing.T) {
 		ctx := context.Background()

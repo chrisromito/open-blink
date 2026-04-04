@@ -15,9 +15,6 @@ import (
 )
 
 func main() {
-	appCtx, cancel := context.WithCancel(context.Background())
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	conf := config.NewConfig()
 	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost)
 	if cerr != nil {
@@ -33,21 +30,26 @@ func main() {
 	}
 
 	//-- Repos
-	cameraRepo := repos.NewPgDeviceRepo(db.GetQueries())
+	queries := db.GetQueries()
+	cameraRepo := repos.NewPgDeviceRepo(queries)
 	frameRepo := pubsub.NewMqttReceiver(&client, conf.VideoPath)
+	hbRepo := repos.NewPgHeartbeatRepo(queries)
+	detectionRepo := repos.NewPgDetectionRepo(queries)
 
 	//-- Services
 	svc := device.NewCameraService(cameraRepo, frameRepo)
 
 	//-- App
-	a := app.NewApp(conf, &client, db, svc)
+	appCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := app.NewApp(conf, &client, db, svc, hbRepo, detectionRepo)
 	go func() {
 		err2 := a.SubscribeToStartStreamTopic(appCtx)
 		if err2 != nil {
 			log.Printf("Error subscribing to start-stream topic: %v", err2)
 		}
 	}()
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
-	cancel()
-
 }

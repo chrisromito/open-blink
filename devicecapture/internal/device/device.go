@@ -25,8 +25,8 @@ func NewCameraService(deviceRepo devices.DeviceRepository, frameRepo receiver.Fr
 }
 
 func (s *CameraService) IsValidId(deviceId string) bool {
-	_, err := strconv.ParseInt(deviceId, 10, 64)
-	d, err2 := s.DeviceRepo.GetDevice(context.Background(), deviceId)
+	id, err := strconv.ParseInt(deviceId, 10, 64)
+	d, err2 := s.DeviceRepo.GetDevice(context.Background(), id)
 	return err == nil && err2 == nil && d != nil
 }
 
@@ -45,7 +45,11 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) error 
 	if s.IsStreaming(deviceId) {
 		return errors.New("multiplexing is not supported")
 	}
-	record, err := s.DeviceRepo.GetDevice(ctx, deviceId)
+	id, err := strconv.ParseInt(deviceId, 10, 64)
+	if err != nil {
+		return err
+	}
+	record, err := s.DeviceRepo.GetDevice(ctx, id)
 	if err != nil {
 		return err
 	}
