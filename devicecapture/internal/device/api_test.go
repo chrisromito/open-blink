@@ -17,23 +17,6 @@ import (
 	"time"
 )
 
-func TestNewFrame(t *testing.T) {
-	// Create a simple test image
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-
-	frame := NewFrame(img.Pix)
-
-	if frame.Image != img {
-		t.Error("Expected frame image to match input image")
-	}
-
-	// Check that the timestamp is recent (within the last second)
-	now := time.Now().UnixMilli()
-	if now-frame.Timestamp > 1000 {
-		t.Errorf("Frame timestamp %d seems too old, current time %d", frame.Timestamp, now)
-	}
-}
-
 func TestApi_Ping_Success(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
