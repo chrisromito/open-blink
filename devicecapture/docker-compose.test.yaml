@@ -1,6 +1,8 @@
 services:
   devicecapture:
-    build: docker/Dockerfile
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
     volumes:
       - ./videos:/videos
     environment:
@@ -10,7 +12,9 @@ services:
       postgres:
         condition: service_healthy
   mockdevice:
-    build: docker/mockdevice.Dockerfile
+    build:
+      context: .
+      dockerfile: ./docker/mockdevice.Dockerfile
     ports:
       - "8080:8080"
   mosquitto:

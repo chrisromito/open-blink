@@ -9,7 +9,7 @@ services:
     volumes:
       - ./videos:/videos
     environment:
-      - MQTT_HOST='mosquitto'
+      - MQTT_HOST=mosquitto
     restart: unless-stopped
   devicecapture:
     build:
@@ -24,8 +24,26 @@ services:
       - mosquitto
       - postgres
     environment:
-      - MQTT_HOST='mosquitto'
-      - DB_URL='postgres://postgres:postgres@postgres:5432/openblink'
+      - MQTT_HOST=mosquitto
+      - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
+    restart: unless-stopped
+  deviceserver:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/deviceserver.Dockerfile
+    container_name: deviceserver
+    networks:
+      - openblink
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./videos:/videos
+    depends_on:
+      - mosquitto
+      - postgres
+    environment:
+      - MQTT_HOST=mosquitto
+      - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
     restart: unless-stopped
   mock_device:
     build:
@@ -34,9 +52,26 @@ services:
     container_name: mock_device
     networks:
       - openblink
+    depends_on:
+      - mosquitto
+      - postgres
     ports:
       - "8080:8080"
     restart: unless-stopped
+  test:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/test.Dockerfile
+    networks:
+      - openblink
+    volumes:
+      - ./devicecapture:/usr/src/app
+    depends_on:
+      - mosquitto
+      - postgres
+    environment:
+      - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
+      - MOCK_DEVICE_URL=http://host.docker.internal:8080
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: mosquitto
@@ -46,7 +81,7 @@ services:
       - "1883:1883" # Standard MQTT port
       - "9001:9001" # Websocket port for MQTT
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./mosquitto/data:/mosquitto/data:rw
       - ./mosquitto/log:/mosquitto/log:rw
     restart: unless-stopped

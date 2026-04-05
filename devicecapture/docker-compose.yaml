@@ -4,8 +4,8 @@ services:
     volumes:
       - ./videos:/videos
     environment:
-      - MQTT_HOST='host.docker.internal:1833'
-      - DB_URL='postgres://postgres:postgres@postgres:5432/openblink'
+      - MQTT_HOST=host.docker.internal:1833
+      - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
     depends_on:
       postgres:
         condition: service_healthy
