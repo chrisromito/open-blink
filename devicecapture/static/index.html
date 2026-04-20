@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Stream Monitor</title>
+    <style>
+        /* Responsive CSS */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #eeeeee;
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #device-grid {
+            display: grid;
+            gap: 20px;
+            /* Auto-fitting grid: cells are at least 300px, but grow to fill space */
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        }
+
+        .device-card {
+            background: #2d2d2d;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .device-header {
+            padding: 12px;
+            background: #3d3d3d;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stream-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            /* Keeps a 16:9 aspect ratio for the stream window */
+            aspect-ratio: 16 / 9;
+        }
+
+        .stream-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .status-msg {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Device Monitor</h1>
+</header>
+
+<main id="device-grid">
+    <div class="status-msg">Loading devices...</div>
+</main>
+
+<script>
+    /**
+     * Logic to fetch devices and render the MJPEG streams
+     */
+    async function initDashboard() {
+        const grid = document.getElementById('device-grid');
+        try {
+            const response = await fetch('/device', {
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const devices = await response.json();
+            return renderDevices(devices)
+        } catch (error) {
+            console.error("Failed to load devices:", error);
+            grid.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`;
+        }
+    }
+
+    function renderDevices(deviceList) {
+        const grid = document.getElementById('device-grid');
+        try {
+            if (deviceList.length === 0) {
+                grid.innerHTML = '<div class="status-msg">No devices found.</div>';
+                return;
+            }
+            // Clear loading message
+            grid.innerHTML = '';
+            deviceList.forEach(device => {
+                const card = DeviceCard(device)
+                grid.appendChild(card);
+            });
+        } catch (error) {
+            console.error("Failed to load devices:", error);
+            grid.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`;
+        }
+    }
+
+    function DeviceCard(device) {
+        const card = document.createElement('div');
+        card.className = 'device-card';
+
+        // Construct the stream URL based on your requirement
+        const streamUrl = `/image-stream/${device.id}`;
+
+        card.innerHTML = `
+            <div class="device-header">${device.name}</div>
+            <div class="stream-container">
+                <img
+                    src="${streamUrl}"
+                    alt="Stream for ${device.name}"
+                    class="stream-img"
+                >
+            </div>
+        `;
+        return card
+    }
+
+    // Run on load
+    window.addEventListener('DOMContentLoaded', initDashboard);
+</script>
+</body>
+</html>

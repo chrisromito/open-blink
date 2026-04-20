@@ -6,8 +6,11 @@ services:
       - mosquitto
     networks:
       - openblink
+    ports:
+      - "8000:8000"
     volumes:
       - ./videos:/videos
+      - ./devicecapture:/usr/src/app
     environment:
       - MQTT_HOST=mosquitto
     restart: unless-stopped
@@ -26,6 +29,7 @@ services:
     environment:
       - MQTT_HOST=mosquitto
       - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
+      - DETECTION_SERVICE_URL=host.docker.internal:8000
     restart: unless-stopped
   deviceserver:
     build:
@@ -38,12 +42,14 @@ services:
       - "4000:4000"
     volumes:
       - ./videos:/videos
+      - ./devicecapture/static:/usr/src/app/static
     depends_on:
       - mosquitto
       - postgres
     environment:
       - MQTT_HOST=mosquitto
       - DB_URL=postgres://postgres:postgres@postgres:5432/openblink
+      - DETECTION_SERVICE_URL=http://blink_detection_service:8000
     restart: unless-stopped
   mock_device:
     build:
@@ -81,7 +87,7 @@ services:
       - "1883:1883" # Standard MQTT port
       - "9001:9001" # Websocket port for MQTT
     volumes:
-      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/config:/mosquitto/config:rw
       - ./mosquitto/data:/mosquitto/data:rw
       - ./mosquitto/log:/mosquitto/log:rw
     restart: unless-stopped

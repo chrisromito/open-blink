@@ -1,29 +1,30 @@
 package postgres
 
 import (
-	"context"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestPingTestDb(t *testing.T) {
+	a := assert.New(t)
 	appDb, err := NewTestAppDb()
-	assert.NoError(t, err)
-	assert.NotNil(t, appDb.Db)
+	a.NoError(err)
+	a.NotNil(appDb.Db)
 	defer appDb.Db.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	err = appDb.Ping(ctx)
-	assert.NoError(t, err)
+	a.NoError(err)
+	cleanupErr := CleanupTestData(ctx, appDb.GetQueries())
+	a.NoError(cleanupErr)
 	appDb.PrintStats()
 }
 
 func TestGetQueries(t *testing.T) {
+	a := assert.New(t)
 	appDb, err := NewTestAppDb()
-	assert.NoError(t, err)
+	a.NoError(err)
 	defer appDb.Db.Close()
-	//assert.NotNil(t, pool)
-
 	// Test GetQueries function
 	queries := GetQueries(*appDb)
-	assert.NotNil(t, queries)
+	a.NotNil(queries)
 }

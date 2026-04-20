@@ -2,9 +2,10 @@ package repos
 
 import (
 	"context"
-	"devicecapture/internal/device/devices"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
 	"errors"
+	"strconv"
 )
 
 // PgDeviceRepo implements devices.DeviceRepository
@@ -19,6 +20,12 @@ func NewPgDeviceRepo(queries *db.Queries) *PgDeviceRepo {
 }
 
 var ErrNotFound = errors.New("record not found")
+
+func (dr *PgDeviceRepo) IsValidId(id string) bool {
+	stringId, err := strconv.ParseInt(id, 10, 64)
+	d, err2 := dr.GetDevice(context.Background(), stringId)
+	return err == nil && err2 == nil && d != nil
+}
 
 // GetDevice PgDeviceRepo implements devices.DeviceRepository
 func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId int64) (*devices.Device, error) {
@@ -73,6 +80,16 @@ func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, params devices.UpdateD
 		Name:      params.Name,
 		DeviceUrl: params.DeviceUrl,
 	}, nil
+}
+
+func (dr *PgDeviceRepo) DeleteDevice(ctx context.Context, id int64) error {
+	err := dr.queries.DeleteDevice(ctx, id)
+	return err
+}
+
+func (dr *PgDeviceRepo) DeleteTestDevices(ctx context.Context) error {
+	err := dr.queries.DeleteTestDevices(ctx)
+	return err
 }
 
 func (dr *PgDeviceRepo) dbToDomain(d db.Device) *devices.Device {

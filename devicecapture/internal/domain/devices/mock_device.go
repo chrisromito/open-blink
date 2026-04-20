@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 )
 
@@ -22,7 +24,7 @@ func GetMockDevice() Device {
 
 func GetTestFailDevice() Device {
 	return Device{
-		ID:        int64(-1),
+		ID:        int64(2),
 		Name:      "fail",
 		DeviceUrl: "http://localhost:1234",
 	}
@@ -40,6 +42,17 @@ func NewMockRepo() *MockRepo {
 		&df,
 		&d,
 	}}
+}
+
+// IsValidId MockRepo implements DeviceRepository
+func (mr *MockRepo) IsValidId(id string) bool {
+	return !isLetter(id)
+}
+
+func isLetter(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z')
+	})
 }
 
 // CreateDevice MockRepo implements DeviceRepository
@@ -90,4 +103,31 @@ func (mr *MockRepo) UpdateDevice(ctx context.Context, params UpdateDeviceParams)
 		}
 	}
 	return nil, errors.New("notfound")
+}
+
+func (mr *MockRepo) DeleteDevice(ctx context.Context, id int64) error {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+	var found = false
+	for idx, d := range mr.ds {
+		if d.ID == id {
+			mr.ds = slices.Delete(mr.ds, idx, idx+1)
+			found = true
+		}
+	}
+	if found == false {
+		return errors.New("device not found")
+	}
+	return nil
+}
+
+func (mr *MockRepo) DeleteTestDevices(ctx context.Context) error {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+	for idx, d := range mr.ds {
+		if strings.Contains(d.Name, "mock") {
+			mr.ds = slices.Delete(mr.ds, idx, idx+1)
+		}
+	}
+	return nil
 }

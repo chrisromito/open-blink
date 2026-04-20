@@ -7,9 +7,10 @@ import (
 )
 
 type Config struct {
-	MqttHost  string
-	DbUrl     string
-	VideoPath string
+	MqttHost            string
+	DbUrl               string
+	VideoPath           string
+	DetectionServiceUrl string
 }
 
 func NewConfig() *Config {
@@ -24,9 +25,15 @@ func NewConfig() *Config {
 		db = "postgres://postgres:postgres@localhost:5432/openblink"
 	}
 	log.Printf("MQTT_HOST: %s", mh)
+	detectionService := os.Getenv("DETECTION_SERVICE_URL")
+	if detectionService == "" {
+		detectionService = "http://0.0.0.0:8000"
+	}
+	log.Printf("DETECTION_SERVICE_URL: %s", detectionService)
 	return &Config{
-		MqttHost:  mh,
-		DbUrl:     db,
-		VideoPath: "/videos",
+		MqttHost:            mh,
+		DbUrl:               db,
+		VideoPath:           "/videos",
+		DetectionServiceUrl: detectionService,
 	}
 }

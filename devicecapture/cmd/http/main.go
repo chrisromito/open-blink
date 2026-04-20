@@ -1,17 +1,17 @@
 // http Starts an http server that listens on port 4000
 // API routes:
-// /api/device - List all devices
-// /api/device/<int:id> - Device detail
+// /api/domain - List all devices
+// /api/domain/<int:id> - Device detail
 // Camera/media routes
-// /camera/<int:DeviceId>/stream - MJPEG stream
-// /camera/<int:DeviceId>/snapshot - JPEG snapshot
+// /camera/<int:DeviceID>/stream - MJPEG stream
+// /camera/<int:DeviceID>/snapshot - JPEG snapshot
 package main
 
 import (
 	"context"
 	"devicecapture/internal/app"
 	"devicecapture/internal/config"
-	"devicecapture/internal/device"
+	"devicecapture/internal/domain"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
@@ -47,17 +47,19 @@ func main() {
 
 	//-- Repos
 	queries := db.GetQueries()
-	cameraRepo := repos.NewPgDeviceRepo(queries)
-	frameRepo := pubsub.NewMqttReceiver(&client, conf.VideoPath)
-	hbRepo := repos.NewPgHeartbeatRepo(queries)
-	detectionRepo := repos.NewPgDetectionRepo(queries)
-	//-- Services
-	svc := device.NewCameraService(cameraRepo, frameRepo)
+	deps := domain.NewDeps(
+		repos.NewPgDeviceRepo(queries),
+		repos.NewPgHeartbeatRepo(queries),
+		repos.NewPgDetectionRepo(queries),
+		repos.NewPgImageRepo(queries),
+		pubsub.NewMqttReceiver(&client, conf.VideoPath),
+	)
 
 	//-- App
-	a := app.NewApp(conf, &client, db, svc, hbRepo, detectionRepo)
+	a := app.NewApp(conf, &client, db, deps)
 
 	// Register HTTP endpoints
+	http.HandleFunc("/", server.HomePageHandler(a))
 	http.HandleFunc("/device", server.DeviceListHandler(a))
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
 	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))

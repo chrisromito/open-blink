@@ -32,7 +32,7 @@ func (fr *MockFrameRepo) StartSession(deviceId string) (*CaptureSession, error) 
 	fr.mu.Lock()
 	defer fr.mu.Unlock()
 	cs := &CaptureSession{
-		DeviceId:  deviceId,
+		DeviceID:  deviceId,
 		StartedAt: time.Now().UnixMilli(),
 	}
 	fr.lastSession = cs
@@ -49,7 +49,7 @@ func (fr *MockFrameRepo) EndSession() error {
 }
 
 // ReceiveFrame MockFrameRepo implements receiver.FrameRepository
-func (fr *MockFrameRepo) ReceiveFrame(frame Frame) error {
+func (fr *MockFrameRepo) ReceiveFrame(frame Frame, framePath string) error {
 	fr.mu.Lock()
 	defer fr.mu.Unlock()
 	fr.lastFrame = &frame
@@ -67,7 +67,7 @@ func (fr *MockFrameRepo) ReceiveFrameStream(ctx context.Context, imgChan <-chan 
 					done <- nil
 					return
 				}
-				err := fr.ReceiveFrame(img)
+				err := fr.ReceiveFrame(img, FramePath("/tmp", fr.lastSession, img))
 				if err != nil {
 					done <- err
 					return

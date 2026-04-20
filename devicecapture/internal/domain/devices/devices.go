@@ -31,4 +31,7 @@ type DeviceRepository interface {
 	GetDevice(ctx context.Context, deviceId int64) (*Device, error)
 	ListDevices(ctx context.Context) ([]*Device, error)
 	UpdateDevice(ctx context.Context, params UpdateDeviceParams) (*Device, error)
+	DeleteDevice(ctx context.Context, id int64) error
+	DeleteTestDevices(ctx context.Context) error
+	IsValidId(id string) bool
 }
