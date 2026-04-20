@@ -1,0 +1,15 @@
+[Unit]
+Description=open-blink Docker Services
+After=network-online.target
+
+[Service]
+ExecStartPre=/bin/sleep 3
+ExecStart=/home/chris/open-blink/run.sh
+WorkingDirectory=/home/chris/open-blink
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=chris
+
+[Install]
+WantedBy=multi-user.target
