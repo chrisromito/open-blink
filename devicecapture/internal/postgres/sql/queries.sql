@@ -1,7 +1,7 @@
 -- name: GetDevices :many
 SELECT *
 FROM devices
-order by name;
+ORDER BY name;
 
 -- name: GetDeviceById :one
 SELECT *
@@ -14,6 +14,16 @@ INSERT INTO devices (id, name, device_url)
 VALUES (DEFAULT, 'mockdevice', 'http://mock_device:8080')
 RETURNING *;
 
+-- name: DeleteTestDevices :exec
+DELETE
+FROM devices
+WHERE name ILIKE '%mockdevice%';
+
+
+-- name: DeleteDevice :exec
+DELETE
+FROM devices
+WHERE id = $1;
 
 -- name: CreateDevice :one
 INSERT INTO devices (id, name, device_url)
@@ -35,7 +45,7 @@ WHERE id = $1;
 SELECT *
 FROM device_heartbeats
 WHERE device_id = $1
-  and created_at >= $2
+  AND created_at >= $2
 ORDER BY created_at DESC;
 
 -- name: HeartBeatsAfter :many
@@ -52,7 +62,7 @@ ORDER BY device_heartbeats.created_at DESC;
 
 -- name: RecordBeat :one
 INSERT INTO device_heartbeats (id, device_id, created_at)
-VALUES (DEFAULT, $1, now())
+VALUES (DEFAULT, $1, NOW())
 RETURNING *;
 
 
@@ -66,9 +76,13 @@ WHERE device_id = $1;
 -- Detections
 -----------------
 -- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence)
-VALUES (DEFAULT, $1, $2, $3)
+INSERT INTO detections (id, device_id, label, confidence, image_id)
+VALUES (DEFAULT, $1, $2, $3, $4)
 RETURNING *;
+
+-- name: CreateDetections :copyfrom
+INSERT INTO detections (device_id, label, confidence, image_id)
+VALUES ($1, $2, $3, $4);
 
 -- name: GetDetectionsAfter :many
 SELECT *
@@ -79,8 +93,9 @@ ORDER BY created_at DESC;
 -- name: GetDeviceDetectionsAfter :many
 SELECT *
 FROM detections
-WHERE device_id = $1
-  AND created_at >= $2
+WHERE device_id = @device_id
+  AND created_at >= @created_at
+    AND image_id = COALESCE(@image_id, image_id)
 ORDER BY created_at DESC;
 
 
@@ -88,3 +103,16 @@ ORDER BY created_at DESC;
 DELETE
 FROM detections
 WHERE device_id = $1;
+
+
+------------ Images
+
+-- name: CreateImage :one
+INSERT INTO device_images (id, device_id, created_at, image_path)
+VALUES (DEFAULT, @device_id, DEFAULT, @image_path)
+RETURNING *;
+
+-- name: GetDeviceImages :many
+SELECT *
+FROM device_images
+WHERE device_id = @device_id;

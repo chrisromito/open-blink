@@ -1,16 +1,19 @@
-package device
+package camera
 
 import (
-	"devicecapture/internal/device/receiver"
+	"bytes"
+	"devicecapture/internal/domain/receiver"
+	"github.com/mattn/go-mjpeg"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
 
 	"context"
 	"errors"
 	"image"
 	"image/color"
 	"image/jpeg"
-	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,7 +24,7 @@ func TestApi_Ping_Success(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
 
-	api := NewApi("test-device", server.URL)
+	api := NewApi("test-domain", server.URL)
 
 	if !api.Ping() {
 		t.Error("Expected Ping() to return true for successful response")
@@ -30,7 +33,7 @@ func TestApi_Ping_Success(t *testing.T) {
 
 func TestApi_Ping_Failure_NetworkError(t *testing.T) {
 	// Use an invalid URL to simulate network errors
-	api := NewApi("test-device", "http://invalid-url-that-does-not-exist:99999")
+	api := NewApi("test-domain", "http://invalid-url-that-does-not-exist:99999")
 
 	if api.Ping() {
 		t.Error("Expected Ping() to return false for network error")
@@ -41,8 +44,8 @@ func TestApi_StreamFrames_Success(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
 
-	api := NewApi("test-device", server.URL)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	api := NewApi("test-domain", server.URL)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	imgChan := make(chan receiver.Frame, 10)
@@ -69,11 +72,10 @@ func TestApi_StreamFrames_Success(t *testing.T) {
 }
 
 func TestApi_StreamFrames_NetworkError(t *testing.T) {
-	api := NewApi("test-device", "http://invalid-url-that-does-not-exist:99999")
-	ctx := context.Background()
+	api := NewApi("test-domain", "http://invalid-url-that-does-not-exist:99999")
 	imgChan := make(chan receiver.Frame, 1)
 
-	err := api.StreamFrames(ctx, imgChan)
+	err := api.StreamFrames(t.Context(), imgChan)
 	if err == nil {
 		t.Error("Expected StreamFrames to return error for network error")
 	}
@@ -84,8 +86,8 @@ func TestApi_StreamFrames_ContextCancellation(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
 
-	api := NewApi("test-device", server.URL)
-	ctx, cancel := context.WithCancel(context.Background())
+	api := NewApi("test-domain", server.URL)
+	ctx, cancel := context.WithCancel(t.Context())
 	imgChan := make(chan receiver.Frame, 10)
 
 	done := make(chan error, 1)
@@ -115,8 +117,8 @@ func TestApi_StreamFrames_ChannelFull(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
 
-	api := NewApi("test-device", server.URL)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	api := NewApi("test-domain", server.URL)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	// Create a small channel that will fill up quickly
@@ -131,34 +133,22 @@ func TestApi_StreamFrames_ChannelFull(t *testing.T) {
 
 func newTestServer() *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/ping" {
+		if r.URL.Path == "/ping" || r.URL.Path == "" || r.URL.Path == "/" {
 			w.WriteHeader(http.StatusOK)
 		}
 		if r.URL.Path == "/stream" {
-			w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
 
-			boundary := "\r\n--frame\r\nContent-Type: image/jpeg\r\n\r\n"
-			for range 10 {
-				img := createTestImage()
-
-				n, err := io.WriteString(w, boundary)
-				if err != nil || n != len(boundary) {
-					log.Printf("TestServer -> Error writing boundary: %v", err)
-					return
-				}
-
-				err = jpeg.Encode(w, img, nil)
-				if err != nil {
-					log.Printf("TestServer -> Error encoding image: %v", err)
-					return
-				}
-
-				n, err = io.WriteString(w, "\r\n")
-				if err != nil || n != 2 {
-					log.Printf("TestServer -> Error writing boundary: %v", err)
-					return
-				}
+			stream := mjpeg.NewStreamWithInterval(200 * time.Millisecond)
+			defer func(stream *mjpeg.Stream) {
+				_ = stream.Close()
+			}(stream)
+			streamErr := stream.Update(getTestImage())
+			if streamErr != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
+				stream.ServeHTTP(w, r)
 			}
+
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -167,16 +157,30 @@ func newTestServer() *httptest.Server {
 	return server
 }
 
-func createTestImage() image.Image {
-	img := image.NewGray(image.Rect(0, 0, 100, 100))
-	for i := 0; i < 100; i++ {
-		for j := 0; j < 100; j++ {
-			n := rand.Intn(256)
-			gray := color.Gray{Y: uint8(n)}
-			img.SetGray(i, j, gray)
-		}
+func getTestImage() []byte {
+	img := image.NewRGBA(image.Rect(0, 0, 250, 250))
+	timestring := time.Now().Format("15:04:05")
+	addLabel(img, 10, 10, timestring)
+	var buf bytes.Buffer
+	err := jpeg.Encode(&buf, img, nil)
+	if err != nil {
+		log.Printf("getTestImage -> err: %v", err)
+		return nil
 	}
-	return img
+	return buf.Bytes()
+}
+
+func addLabel(img *image.RGBA, x, y int, label string) {
+	col := color.RGBA{R: 200, G: 100, A: 255}
+	point := fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y)}
+
+	d := &font.Drawer{
+		Dst:  img,
+		Src:  image.NewUniform(col),
+		Face: basicfont.Face7x13,
+		Dot:  point,
+	}
+	d.DrawString(label)
 }
 
 // Benchmark tests
@@ -195,7 +199,7 @@ func BenchmarkApi_Ping(b *testing.B) {
 	}))
 	defer server.Close()
 
-	api := NewApi("test-device", server.URL)
+	api := NewApi("test-domain", server.URL)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -17,5 +17,6 @@ WORKDIR /usr/src/app
 COPY --from=build /usr/src/build/bin .
 
 RUN mkdir -p videos
+RUN mkdir -p static
 
 CMD ["./deviceserver"]

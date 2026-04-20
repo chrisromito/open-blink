@@ -2,7 +2,7 @@ package repos
 
 import (
 	"context"
-	"devicecapture/internal/device/devices"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
 	"strconv"
 )
@@ -18,7 +18,7 @@ func NewPgDetectionRepo(queries *db.Queries) *PgDetectionRepo {
 	}
 }
 
-// CreateDetection create a new device detection record
+// CreateDetection create a new domain detection record
 func (d *PgDetectionRepo) CreateDetection(ctx context.Context, params devices.CreateDetectionParams) (*devices.Detection, error) {
 	dbParams := db.CreateDetectionParams{
 		DeviceID:   params.DeviceID,
@@ -32,7 +32,7 @@ func (d *PgDetectionRepo) CreateDetection(ctx context.Context, params devices.Cr
 	return d.dbToDomain(detect), nil
 }
 
-// GetDetectionsAfter get all device detections after the specified point in time
+// GetDetectionsAfter get all domain detections after the specified point in time
 func (d *PgDetectionRepo) GetDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]*devices.Detection, error) {
 	value, err := d.queries.GetDetectionsAfter(ctx, params.CreatedAt)
 	if err != nil {
@@ -45,7 +45,7 @@ func (d *PgDetectionRepo) GetDetectionsAfter(ctx context.Context, params devices
 	return detections, nil
 }
 
-// GetDeviceDetectionsAfter get detections for a given device, after the specified point in time
+// GetDeviceDetectionsAfter get detections for a given domain, after the specified point in time
 func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params devices.QueryParams) ([]*devices.Detection, error) {
 	dbParams, err := d.toDbQueryParams(params)
 	if err != nil {
@@ -77,6 +77,7 @@ func (d *PgDetectionRepo) dbToDomain(value db.Detection) *devices.Detection {
 	return &devices.Detection{
 		ID:         value.ID,
 		DeviceID:   value.DeviceID,
+		ImageID:    value.ImageID,
 		CreatedAt:  value.CreatedAt,
 		Label:      value.Label,
 		Confidence: value.Confidence,
