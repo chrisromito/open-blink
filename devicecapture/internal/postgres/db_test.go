@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"devicecapture/internal/postgres/db"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -15,11 +14,20 @@ func TestCreateTestDevice(t *testing.T) {
 		defer appDb.Db.Close()
 		a.Nil(err)
 		queries := GetQueries(*appDb)
-		testDevice, err2 := queries.CreateTestDevice(context.Background())
+		testDevice, err2 := queries.CreateTestDevice(t.Context())
 		a.Nil(err2)
 		a.NotNil(testDevice)
 		a.Equal(testDevice.Name, "mockdevice")
 		fmt.Printf("testDevice: %v", testDevice)
+	})
+	t.Run("delete_test_devices", func(t *testing.T) {
+		a := assert.New(t)
+		appDb, err := NewTestAppDb()
+		defer appDb.Db.Close()
+		a.Nil(err)
+		queries := GetQueries(*appDb)
+		dErr := queries.DeleteTestDevices(t.Context())
+		a.Nil(dErr)
 	})
 }
 
@@ -42,32 +50,35 @@ func TestGetDevices(t *testing.T) {
 	}
 
 	t.Run("get_devices", func(t *testing.T) {
+		a := assert.New(t)
 		appDb, err := NewTestAppDb()
 		defer appDb.Db.Close()
-
-		assert.Nil(t, err)
-		ctx := context.Background()
+		a.Nil(err)
+		ctx := t.Context()
 		queries := GetQueries(*appDb)
+		cleanupErr := CleanupTestData(ctx, queries)
+		a.NoError(cleanupErr)
+		_, testDeviceErr := queries.CreateTestDevice(ctx)
+		a.NoError(testDeviceErr)
 		devices, err2 := queries.GetDevices(ctx)
-		assert.Nil(t, err2)
-		assert.NotNil(t, devices)
+		a.Nil(err2)
+		a.NotNil(devices)
 		var testDevice db.Device
 		for _, device := range devices {
 			if device.Name == "mockdevice" {
 				testDevice = device
 			}
 		}
-		assert.NotNil(t, testDevice)
-		assert.Equal(t, testDevice.Name, "mockdevice")
-		fmt.Printf("devices: %v", devices)
+		a.NotNil(testDevice)
+		a.Equal(testDevice.Name, "mockdevice")
 	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			a := assert.New(t)
 			appDb := NewAppDb()
-
-			assert.NotNil(t, appDb)
-			assert.Nil(t, appDb.Db) // Should be nil until Connect is called
+			a.NotNil(appDb)
+			a.Nil(appDb.Db) // Should be nil until Connect is called
 		})
 	}
 }

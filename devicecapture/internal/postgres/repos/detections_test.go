@@ -1,8 +1,7 @@
 package repos
 
 import (
-	"context"
-	"devicecapture/internal/device/devices"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
 	"strconv"
@@ -16,7 +15,7 @@ func TestCreateDetection(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	repo := NewPgDetectionRepo(appDb.GetQueries())
-	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
+	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
 	a.NoError(deviceErr)
 	deviceId := testDevice.ID
 
@@ -33,7 +32,7 @@ func TestCreateDetection(t *testing.T) {
 		{
 			params:  devices.CreateDetectionParams{DeviceID: -5, Label: "dog", Confidence: 0.9},
 			wantErr: true,
-			message: "An error is thrown if the device ID is not in the database",
+			message: "An error is thrown if the domain ID is not in the database",
 		},
 		{
 			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "cat", Confidence: 0.85},
@@ -43,7 +42,7 @@ func TestCreateDetection(t *testing.T) {
 	}
 
 	t.Run("create_test_detection", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		for _, test := range tests {
 			value, err := repo.CreateDetection(ctx, test.params)
 			if test.wantErr {
@@ -63,12 +62,12 @@ func TestGetDetectionsAfter(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	repo := NewPgDetectionRepo(appDb.GetQueries())
-	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
+	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
 	a.NoError(deviceErr)
 	deviceId := testDevice.ID
 
 	t.Run("create_detections_for_query_test", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		params := []devices.CreateDetectionParams{
 			{DeviceID: deviceId, Label: "person", Confidence: 0.9},
 			{DeviceID: deviceId, Label: "dog", Confidence: 0.8},
@@ -107,7 +106,7 @@ func TestGetDetectionsAfter(t *testing.T) {
 	}
 
 	t.Run("test_query_all_detections_after", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		for _, test := range tests {
 			value, err := repo.GetDetectionsAfter(ctx, test.params)
 			if test.wantErr {
@@ -122,7 +121,7 @@ func TestGetDetectionsAfter(t *testing.T) {
 	})
 
 	t.Run("test_query_device_detections_after", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		for _, test := range tests {
 			value, err := repo.GetDeviceDetectionsAfter(ctx, test.params)
 			if test.wantErr {

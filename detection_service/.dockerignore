@@ -1,6 +1,5 @@
-
 ./.idea
-test_videos/*
+#test_videos/*
 __pycache__/
 *.py[oc]
 build/

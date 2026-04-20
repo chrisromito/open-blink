@@ -1,8 +1,7 @@
 package pubsub
 
 import (
-	"context"
-	"devicecapture/internal/device/receiver"
+	"devicecapture/internal/domain/receiver"
 	"image"
 	"image/color"
 	"os"
@@ -42,7 +41,7 @@ func setupTestDir(t *testing.T) (string, func()) {
 	originalVideosDir := "/videos"
 
 	return tempDir, func() {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		// Restore original if needed
 		_ = originalVideosDir
 	}
@@ -86,7 +85,7 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 	client := &MqttClient{}
 	rec := NewMqttReceiver(client, tempDir)
 
-	deviceId := "test-device-123"
+	deviceId := "test-domain-123"
 
 	// Patch the videos directory for testing
 	//originalCheckSessionDir := rec.checkSessionDir
@@ -101,16 +100,16 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 		t.Fatal("StartSession returned nil session")
 	}
 
-	if session.DeviceId != deviceId {
-		t.Errorf("Expected device ID %s, got %s", deviceId, session.DeviceId)
+	if session.DeviceID != deviceId {
+		t.Errorf("Expected domain ID %s, got %s", deviceId, session.DeviceID)
 	}
 
 	if session.StartedAt == 0 {
 		t.Error("StartedAt should not be zero")
 	}
 
-	if rec.Session.DeviceId != deviceId {
-		t.Errorf("Expected receiver session device ID %s, got %s", deviceId, rec.Session.DeviceId)
+	if rec.Session.DeviceID != deviceId {
+		t.Errorf("Expected receiver session domain ID %s, got %s", deviceId, rec.Session.DeviceID)
 	}
 }
 
@@ -120,10 +119,7 @@ func TestMqttReceiver_FrameToJson(t *testing.T) {
 	rec := NewMqttReceiver(client, vp)
 
 	// Set up a test session
-	rec.Session = receiver.CaptureSession{
-		DeviceId:  "test-device",
-		StartedAt: 1234567890,
-	}
+	rec.Session = receiver.NewCaptureSession("test-domain")
 
 	frame := createTestFrame(9876543210)
 
@@ -138,9 +134,10 @@ func TestMqttReceiver_FrameToJson(t *testing.T) {
 
 	// Check that the JSON contains expected fields
 	expectedSubstrings := []string{
-		"test-device",
+		"test-domain",
 		"9876543210",
-		"test-path/test-device-1234567890/output-test-device-9876543210.jpeg",
+		"output-test-domain-9876543210.jpeg",
+		"test-path/test-domain-",
 	}
 
 	for _, expected := range expectedSubstrings {
@@ -151,7 +148,7 @@ func TestMqttReceiver_FrameToJson(t *testing.T) {
 }
 
 func TestFrameJson(t *testing.T) {
-	deviceId := "test-device"
+	deviceId := "test-domain"
 	fileName := "/path/to/test.jpg"
 	frame := createTestFrame(1234567890)
 
@@ -165,7 +162,7 @@ func TestFrameJson(t *testing.T) {
 	}
 
 	expectedSubstrings := []string{
-		"test-device",
+		"test-domain",
 		"/path/to/test.jpg",
 		"1234567890",
 	}
@@ -174,120 +171,6 @@ func TestFrameJson(t *testing.T) {
 		if !strings.Contains(jsonStr, expected) {
 			t.Errorf("Expected JSON to contain %s, but got: %s", expected, jsonStr)
 		}
-	}
-}
-
-func TestFramePath(t *testing.T) {
-	tests := []struct {
-		dirPath    string
-		name       string
-		startStamp int64
-		deviceId   string
-		timestamp  int64
-		expected   string
-	}{
-		{
-			dirPath:    "/test-frame-path",
-			name:       "generates correct path",
-			startStamp: 1234567890,
-			deviceId:   "device1",
-			timestamp:  9876543210,
-			expected:   "/test-frame-path/device1-1234567890/output-device1-9876543210.jpeg",
-		},
-		{
-			dirPath:    "/test-path2",
-			name:       "handles zero timestamps",
-			startStamp: 0,
-			deviceId:   "device2",
-			timestamp:  0,
-			expected:   "/test-path2/device2-0/output-device2-0.jpeg",
-		},
-		{
-			dirPath:    "/test-frame-path",
-			name:       "handles empty device id",
-			startStamp: 1000,
-			deviceId:   "",
-			timestamp:  2000,
-			expected:   "/test-frame-path/-1000/output--2000.jpeg",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := FramePath(tt.dirPath, tt.startStamp, tt.deviceId, tt.timestamp)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestMqttReceiver_ReceiveFrame(t *testing.T) {
-	tempDir, cleanup := setupTestDir(t)
-	defer cleanup()
-
-	// Create a simple test client that captures publish calls
-	publishCalls := make([]struct {
-		topic   string
-		payload interface{}
-	}, 0)
-
-	client := &MqttClient{}
-	// We can't easily test the actual MQTT publishing without a real broker,
-	// but we can test that the method completes without error
-
-	rec := NewMqttReceiver(client, tempDir)
-	rec.Session = receiver.CaptureSession{
-		DeviceId:  "test-device",
-		StartedAt: time.Now().UnixMilli(),
-	}
-
-	frame := createTestFrame(time.Now().UnixMilli())
-
-	// This test mainly verifies that the method doesn't panic
-	// In a real environment, you'd need a running MQTT broker to test publishing
-	rec.ReceiveFrame(frame)
-
-	// The method should complete without error
-	// Note: File writing will fail because /videos doesn't exist in test environment,
-	// but that's expected and handled gracefully by the goroutines
-
-	_ = publishCalls // Used to capture calls in a more complete test setup
-}
-
-func TestMqttReceiver_ReceiveFrameStream(t *testing.T) {
-	client := &MqttClient{}
-
-	rec := NewMqttReceiver(client, "/tmp")
-	rec.Session = receiver.CaptureSession{
-		DeviceId:  "test-device",
-		StartedAt: time.Now().UnixMilli(),
-	}
-
-	// Create a context with timeout to ensure the test doesn't run forever
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	// Create a channel and send some test frames
-	imgChan := make(chan receiver.Frame, 3)
-	go func() {
-		defer close(imgChan)
-		for i := 0; i < 3; i++ {
-			frame := createTestFrame(time.Now().UnixMilli() + int64(i))
-			select {
-			case imgChan <- frame:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// Start the frame stream processing
-	err := rec.ReceiveFrameStream(ctx, imgChan)
-
-	// The method should return nil when context is cancelled
-	if err != nil {
-		t.Errorf("ReceiveFrameStream returned unexpected error: %v", err)
 	}
 }
 
@@ -303,11 +186,7 @@ func TestMqttReceiver_EndSession(t *testing.T) {
 	}
 
 	rec := NewMqttReceiver(client, "/tmp")
-	rec.Session = receiver.CaptureSession{
-		DeviceId:  "test-device",
-		StartedAt: 1234567890,
-	}
-
+	rec.Session = receiver.NewCaptureSession("test-domain")
 	// This test will fail in the actual publish call since we don't have a real MQTT client
 	// but we can test that the method constructs the correct topic and payload
 	err := rec.EndSession()
@@ -318,8 +197,8 @@ func TestMqttReceiver_EndSession(t *testing.T) {
 	}
 
 	// In a real test with a connected client, we'd verify:
-	// - Topic should be "end-stream/test-device"
-	// - Payload should be "/videos/test-device-1234567890"
+	// - Topic should be "end-stream/test-domain"
+	// - Payload should be "/videos/test-domain-1234567890"
 
 	_ = publishCalls // Used to capture calls in a more complete test setup
 }
@@ -332,7 +211,7 @@ func TestMqttReceiver_Integration(t *testing.T) {
 	client := &MqttClient{}
 	rec := NewMqttReceiver(client, tempDir)
 
-	deviceId := "integration-test-device"
+	deviceId := "integration-test-domain"
 
 	// Test session creation
 	session, err := rec.StartSession(deviceId)
@@ -342,8 +221,8 @@ func TestMqttReceiver_Integration(t *testing.T) {
 	}
 
 	if session != nil {
-		if session.DeviceId != deviceId {
-			t.Errorf("Expected device ID %s, got %s", deviceId, session.DeviceId)
+		if session.DeviceID != deviceId {
+			t.Errorf("Expected domain ID %s, got %s", deviceId, session.DeviceID)
 		}
 	}
 
@@ -355,11 +234,11 @@ func TestMqttReceiver_Integration(t *testing.T) {
 	}
 
 	if !strings.Contains(jsonStr, deviceId) {
-		t.Errorf("JSON should contain device ID %s: %s", deviceId, jsonStr)
+		t.Errorf("JSON should contain domain ID %s: %s", deviceId, jsonStr)
 	}
 
 	// Test frame path generation
-	path := FramePath(rec.videoPath, rec.Session.StartedAt, deviceId, frame.Timestamp)
+	path := receiver.FramePath(rec.videoPath, rec.Session, frame)
 	expectedPrefix := rec.videoPath + "/" + deviceId + "-"
 	if !strings.HasPrefix(path, expectedPrefix) {
 		t.Errorf("Path should start with %s, got: %s", expectedPrefix, path)
@@ -368,7 +247,7 @@ func TestMqttReceiver_Integration(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkFrameJson(b *testing.B) {
-	deviceId := "bench-device"
+	deviceId := "bench-domain"
 	fileName := "/path/to/bench.jpg"
 	frame := createTestFrame(1234567890)
 
@@ -381,24 +260,10 @@ func BenchmarkFrameJson(b *testing.B) {
 	}
 }
 
-func BenchmarkFramePath(b *testing.B) {
-	startStamp := int64(1234567890)
-	deviceId := "bench-device"
-	timestamp := int64(9876543210)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = FramePath("/tmp", startStamp, deviceId, timestamp)
-	}
-}
-
 func BenchmarkMqttReceiver_FrameToJson(b *testing.B) {
 	client := &MqttClient{}
 	rec := NewMqttReceiver(client, "/tmp")
-	rec.Session = receiver.CaptureSession{
-		DeviceId:  "bench-device",
-		StartedAt: 1234567890,
-	}
+	rec.Session = receiver.NewCaptureSession("bench-domain")
 
 	frame := createTestFrame(9876543210)
 

@@ -86,35 +86,6 @@ class DetectionService:
         self.repo: DetectionRepo = repo
 
     @classmethod
-    def receive_message(cls, msg: InMessage, model, repo) -> list[DetectionResult]:
-        if msg.topic.startswith('end-stream/'):
-            # Batch message
-            device_id: str = msg.topic.replace('end-stream/', '')
-            instance = cls(device_id, model, repo)
-            # return instance.receive_batch_message(
-            #     BatchMessage(
-            #         device_id=device_id,
-            #         payload=msg.payload
-            #     )
-            # )
-            logger.debug(f'receive_message: batch message')
-            return []
-        elif msg.topic.startswith('image/'):
-            device_id: str = msg.topic.replace('image/', '')
-            instance = cls(device_id, model, repo)
-            data = json.loads(msg.payload.decode())
-            timestamp = data.get('timestamp', int(datetime.now().timestamp() * 1000))
-            result = instance.receive_image_message(
-                ImageMessage(
-                    device_id=device_id,
-                    payload=msg.payload,
-                    timestamp=timestamp
-                )
-            )
-            return [result]
-        return []
-
-    @classmethod
     def receive_in_messages(cls, msgs: list[InMessage], processor: Processor, repo: DetectionRepo) -> list[OutMessage]:
         messages = [m for m in msgs if m.topic.startswith('image/')]
         if len(messages) < 1:
@@ -151,21 +122,6 @@ class DetectionService:
         receiver_timer()
         return out_messages
 
-    def receive_image_message(self, msg: ImageMessage) -> DetectionMessage:
-        """
-        Perform inference on an Image & return the DetectionResult
-        """
-        data = json.loads(msg.payload.decode())
-        file_name: str = data.get('file_name')
-        output_image, detections, _ = process_image(self.model, file_name)
-        return DetectionMessage(
-            in_path=file_name,
-            device_id=self.device_id,
-            image=output_image,
-            detections=detections,
-            timestamp=get_epoch()
-        )
-
     def receive_image_messages(self, msgs: list[ImageMessage]) -> list[DetectionMessage]:
         """
         Perform inference o list of Images & return the DetectionResults
@@ -175,8 +131,6 @@ class DetectionService:
             json.loads(msg.payload.decode())
             for msg in msgs
         ]
-
-        # batch_results: BatchResult = process_images(self.model, [x.get('file_name') for x in data_list])
         batch_results: BatchResult = self.processor.predict_batch([x.get('file_name') for x in data_list])
         results: list[DetectionMessage] = []
         for result in batch_results:
@@ -195,30 +149,6 @@ class DetectionService:
                 )
             )
         return results
-
-    def receive_batch_message(self, msg: BatchMessage) -> list[DetectionMessage]:
-        """
-        Introspect a BatchMessage & perform inference on all image files in the respective directory
-        """
-        dir_path = msg.payload.decode()
-        image_paths: list[str] = get_images_in_directory(dir_path)
-        results: list[DetectionMessage] = []
-        for image_path in image_paths:
-            batch_result: BatchResult = process_images(self.model, [image_path])
-            for result in batch_result:
-                if result.get('image', None) is None:
-                    continue
-                results.append(
-                    DetectionMessage(
-                        in_path=result.get('in_path'),
-                        device_id=self.device_id,
-                        image=result.get('image'),
-                        detections=result.get('detections'),
-                        timestamp=get_epoch()
-                    )
-                )
-        return results
-
 
 def get_meta_path(detection_result: DetectionResult):
     original_path = strip_file_extension(detection_result.get('in_path'))

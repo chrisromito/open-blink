@@ -1,8 +1,7 @@
 package repos
 
 import (
-	"context"
-	"devicecapture/internal/device/devices"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -18,10 +17,11 @@ func TestCreateDevices(t *testing.T) {
 	defer appDb.Db.Close()
 	repo := NewPgDeviceRepo(appDb.GetQueries())
 
+	ctx := t.Context()
 	t.Run("create_test_device", func(t *testing.T) {
-		testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
+		testDevice, deviceErr := repo.queries.CreateTestDevice(ctx)
 		a.NoError(deviceErr)
-		a.NotNil(testDevice, "The test device was inserted into the DB")
+		a.NotNil(testDevice, "The test domain was inserted into the DB")
 	})
 
 	tests := []struct {
@@ -37,20 +37,18 @@ func TestCreateDevices(t *testing.T) {
 		{
 			params:  devices.CreateDeviceParams{Name: "Super long URL", DeviceUrl: generateRandomString(500)},
 			wantErr: true,
-			message: "device URLs must be shorter than 250 characters",
+			message: "domain URLs must be shorter than 250 characters",
 		},
 		{
 			params:  devices.CreateDeviceParams{Name: generateRandomString(500), DeviceUrl: "http://longname:1234"},
 			wantErr: true,
-			message: "device names must be shorter than 250 characters",
+			message: "domain names must be shorter than 250 characters",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run("create_device", func(t *testing.T) {
-			ctx := context.Background()
 			value, err := repo.CreateDevice(ctx, test.params)
-
 			if test.wantErr {
 				a.Error(err)
 				a.Nil(value)
@@ -68,12 +66,16 @@ func TestList_And_UpdateDevices(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	repo := NewPgDeviceRepo(appDb.GetQueries())
-	testDevice, deviceErr := repo.queries.CreateTestDevice(context.Background())
+	ctx := t.Context()
+	cleanupErr := repo.DeleteTestDevices(ctx)
+	if cleanupErr != nil {
+		t.Error(cleanupErr)
+	}
+	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
 	a.NoError(deviceErr)
-	a.NotNil(testDevice, "The test device was inserted into the DB")
+	a.NotNil(testDevice, "The test domain was inserted into the DB")
 
-	ctx := context.Background()
-	allDevices, err := repo.ListDevices(ctx)
+	allDevices, err := repo.ListDevices(t.Context())
 	a.NoError(err)
 	a.NotEmpty(allDevices)
 	for i, d := range allDevices {

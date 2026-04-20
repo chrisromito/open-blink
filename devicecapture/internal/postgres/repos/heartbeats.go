@@ -2,7 +2,7 @@ package repos
 
 import (
 	"context"
-	"devicecapture/internal/device/devices"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
 	"time"
 )
@@ -18,7 +18,7 @@ func NewPgHeartbeatRepo(queries *db.Queries) *PgHeartbeatRepo {
 	}
 }
 
-// GetDeviceHeartBeats get all heartbeats for a given device
+// GetDeviceHeartBeats get all heartbeats for a given domain
 func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]*devices.Heartbeat, error) {
 	hbs, err := hb.queries.GetDeviceHeartBeats(ctx, db.GetDeviceHeartBeatsParams{
 		DeviceID:  deviceId,
@@ -63,7 +63,7 @@ func (hb *PgHeartbeatRepo) LatestBeats(ctx context.Context) ([]*devices.LatestBe
 	return dslice, nil
 }
 
-// RecordBeat create a DeviceHeartBeat record for a given device, using the current timestamp
+// RecordBeat create a DeviceHeartBeat record for a given domain, using the current timestamp
 func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId int64) (*devices.Heartbeat, error) {
 	record, err := hb.queries.RecordBeat(ctx, deviceId)
 	if err != nil {
@@ -72,7 +72,7 @@ func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId int64) (*dev
 	return hb.dbToDomain(record), nil
 }
 
-// DeleteBeats delete heart beat records for a given device
+// DeleteBeats delete heart beat records for a given domain
 func (hb *PgHeartbeatRepo) DeleteBeats(ctx context.Context, deviceId int64) error {
 	return hb.queries.DeleteBeats(ctx, deviceId)
 }

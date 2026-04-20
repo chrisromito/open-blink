@@ -33,8 +33,8 @@ func getTestImage() []byte {
 }
 
 func addLabel(img *image.RGBA, x, y int, label string) {
-	col := color.RGBA{200, 100, 0, 255}
-	point := fixed.Point26_6{fixed.I(x), fixed.I(y)}
+	col := color.RGBA{R: 200, G: 100, A: 255}
+	point := fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y)}
 
 	d := &font.Drawer{
 		Dst:  img,
