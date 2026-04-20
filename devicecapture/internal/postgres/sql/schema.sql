@@ -1,40 +1,65 @@
-create table devices
+-- Devices (Cameras)
+CREATE TABLE devices
 (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name       varchar(250) not null,
-    device_url varchar(250) not null
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name       varchar(250) NOT NULL,
+    device_url varchar(250) NOT NULL
 );
 
-create table device_heartbeats
+-- Heartbeats
+CREATE TABLE device_heartbeats
 (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    device_id  bigint                                 not null
-        constraint device_heartbeats_device__fk
-            references devices
-            on delete restrict,
-    created_at timestamp with time zone default now() not null
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    device_id  bigint                                 NOT NULL
+        CONSTRAINT device_heartbeats_device__fk
+            REFERENCES devices
+            ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT NOW() NOT NULL
 );
 
-create index device_heartbeats__created_at__index
-    on device_heartbeats (created_at);
+CREATE INDEX device_heartbeats__created_at__index
+    ON device_heartbeats (created_at);
 
-create index device_heartbeats__device_id__idx
-    on device_heartbeats (device_id);
+CREATE INDEX device_heartbeats__device_id__idx
+    ON device_heartbeats (device_id);
 
-create table detections
+-- Images
+CREATE TABLE device_images
 (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    device_id  bigint       not null
-        constraint detections_device__fk
-            references devices
-            on delete restrict,
-    created_at timestamp with time zone default now() not null,
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    device_id  bigint                                 NOT NULL
+        CONSTRAINT device_images_device__fk
+            REFERENCES devices
+            ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT NOW() NOT NULL,
+    image_path varchar(250)                           NOT NULL,
+    UNIQUE (image_path)
+);
+
+CREATE INDEX device_images__created_at_idx
+    ON device_images (created_at);
+
+-- Detections
+CREATE TABLE detections
+(
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    device_id  bigint       NOT NULL
+        CONSTRAINT detections_device__fk
+            REFERENCES devices
+            ON DELETE CASCADE,
+    image_id   bigint
+        CONSTRAINT detections_image__fk
+            REFERENCES device_images
+            ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT NOW() NOT NULL,
     label      varchar(250) NOT NULL,
-    confidence float        NOT NULL DEFAULT 0.0
+    confidence float        NOT NULL    DEFAULT 0.0
 );
 
-create index detections__created_at__index
-    on detections (created_at);
+CREATE INDEX detections__created_at__index
+    ON detections (created_at);
 
-create index detections__device_id__idx
-    on detections (device_id);
+CREATE INDEX detections__device_id__idx
+    ON detections (device_id);
+
+

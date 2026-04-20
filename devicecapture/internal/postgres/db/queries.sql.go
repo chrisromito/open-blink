@@ -11,31 +11,45 @@ import (
 )
 
 const createDetection = `-- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence)
-VALUES (DEFAULT, $1, $2, $3)
-RETURNING id, device_id, created_at, label, confidence
+INSERT INTO detections (id, device_id, label, confidence, image_id)
+VALUES (DEFAULT, $1, $2, $3, $4)
+RETURNING id, device_id, image_id, created_at, label, confidence
 `
 
 type CreateDetectionParams struct {
 	DeviceID   int64   `db:"device_id" json:"device_id"`
 	Label      string  `db:"label" json:"label"`
 	Confidence float64 `db:"confidence" json:"confidence"`
+	ImageID    *int64  `db:"image_id" json:"image_id"`
 }
 
 // ---------------
 // Detections
 // ---------------
 func (q *Queries) CreateDetection(ctx context.Context, arg CreateDetectionParams) (Detection, error) {
-	row := q.db.QueryRow(ctx, createDetection, arg.DeviceID, arg.Label, arg.Confidence)
+	row := q.db.QueryRow(ctx, createDetection,
+		arg.DeviceID,
+		arg.Label,
+		arg.Confidence,
+		arg.ImageID,
+	)
 	var i Detection
 	err := row.Scan(
 		&i.ID,
 		&i.DeviceID,
+		&i.ImageID,
 		&i.CreatedAt,
 		&i.Label,
 		&i.Confidence,
 	)
 	return i, err
+}
+
+type CreateDetectionsParams struct {
+	DeviceID   int64   `db:"device_id" json:"device_id"`
+	Label      string  `db:"label" json:"label"`
+	Confidence float64 `db:"confidence" json:"confidence"`
+	ImageID    *int64  `db:"image_id" json:"image_id"`
 }
 
 const createDevice = `-- name: CreateDevice :one
@@ -56,9 +70,34 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 	return i, err
 }
 
+const createImage = `-- name: CreateImage :one
+
+INSERT INTO device_images (id, device_id, created_at, image_path)
+VALUES (DEFAULT, $1, DEFAULT, $2)
+RETURNING id, device_id, created_at, image_path
+`
+
+type CreateImageParams struct {
+	DeviceID  int64  `db:"device_id" json:"device_id"`
+	ImagePath string `db:"image_path" json:"image_path"`
+}
+
+// ---------- Images
+func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (DeviceImage, error) {
+	row := q.db.QueryRow(ctx, createImage, arg.DeviceID, arg.ImagePath)
+	var i DeviceImage
+	err := row.Scan(
+		&i.ID,
+		&i.DeviceID,
+		&i.CreatedAt,
+		&i.ImagePath,
+	)
+	return i, err
+}
+
 const createTestDevice = `-- name: CreateTestDevice :one
 INSERT INTO devices (id, name, device_url)
-VALUES (DEFAULT, 'mockdevice', 'http://localhost:8080')
+VALUES (DEFAULT, 'mockdevice', 'http://mock_device:8080')
 RETURNING id, name, device_url
 `
 
@@ -91,8 +130,30 @@ func (q *Queries) DeleteDetections(ctx context.Context, deviceID int64) error {
 	return err
 }
 
+const deleteDevice = `-- name: DeleteDevice :exec
+DELETE
+FROM devices
+WHERE id = $1
+`
+
+func (q *Queries) DeleteDevice(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteDevice, id)
+	return err
+}
+
+const deleteTestDevices = `-- name: DeleteTestDevices :exec
+DELETE
+FROM devices
+WHERE name ILIKE '%mockdevice%'
+`
+
+func (q *Queries) DeleteTestDevices(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteTestDevices)
+	return err
+}
+
 const getDetectionsAfter = `-- name: GetDetectionsAfter :many
-SELECT id, device_id, created_at, label, confidence
+SELECT id, device_id, image_id, created_at, label, confidence
 FROM detections
 WHERE created_at >= $1
 ORDER BY created_at DESC
@@ -110,6 +171,7 @@ func (q *Queries) GetDetectionsAfter(ctx context.Context, createdAt time.Time) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeviceID,
+			&i.ImageID,
 			&i.CreatedAt,
 			&i.Label,
 			&i.Confidence,
@@ -139,20 +201,22 @@ func (q *Queries) GetDeviceById(ctx context.Context, id int64) (Device, error) {
 }
 
 const getDeviceDetectionsAfter = `-- name: GetDeviceDetectionsAfter :many
-SELECT id, device_id, created_at, label, confidence
+SELECT id, device_id, image_id, created_at, label, confidence
 FROM detections
 WHERE device_id = $1
   AND created_at >= $2
+    AND image_id = COALESCE($3, image_id)
 ORDER BY created_at DESC
 `
 
 type GetDeviceDetectionsAfterParams struct {
 	DeviceID  int64     `db:"device_id" json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ImageID   *int64    `db:"image_id" json:"image_id"`
 }
 
 func (q *Queries) GetDeviceDetectionsAfter(ctx context.Context, arg GetDeviceDetectionsAfterParams) ([]Detection, error) {
-	rows, err := q.db.Query(ctx, getDeviceDetectionsAfter, arg.DeviceID, arg.CreatedAt)
+	rows, err := q.db.Query(ctx, getDeviceDetectionsAfter, arg.DeviceID, arg.CreatedAt, arg.ImageID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +227,7 @@ func (q *Queries) GetDeviceDetectionsAfter(ctx context.Context, arg GetDeviceDet
 		if err := rows.Scan(
 			&i.ID,
 			&i.DeviceID,
+			&i.ImageID,
 			&i.CreatedAt,
 			&i.Label,
 			&i.Confidence,
@@ -182,7 +247,7 @@ const getDeviceHeartBeats = `-- name: GetDeviceHeartBeats :many
 SELECT id, device_id, created_at
 FROM device_heartbeats
 WHERE device_id = $1
-  and created_at >= $2
+  AND created_at >= $2
 ORDER BY created_at DESC
 `
 
@@ -214,10 +279,41 @@ func (q *Queries) GetDeviceHeartBeats(ctx context.Context, arg GetDeviceHeartBea
 	return items, nil
 }
 
+const getDeviceImages = `-- name: GetDeviceImages :many
+SELECT id, device_id, created_at, image_path
+FROM device_images
+WHERE device_id = $1
+`
+
+func (q *Queries) GetDeviceImages(ctx context.Context, deviceID int64) ([]DeviceImage, error) {
+	rows, err := q.db.Query(ctx, getDeviceImages, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeviceImage{}
+	for rows.Next() {
+		var i DeviceImage
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeviceID,
+			&i.CreatedAt,
+			&i.ImagePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDevices = `-- name: GetDevices :many
 SELECT id, name, device_url
 FROM devices
-order by name
+ORDER BY name
 `
 
 func (q *Queries) GetDevices(ctx context.Context) ([]Device, error) {
@@ -310,7 +406,7 @@ func (q *Queries) LatestBeats(ctx context.Context) ([]LatestBeatsRow, error) {
 
 const recordBeat = `-- name: RecordBeat :one
 INSERT INTO device_heartbeats (id, device_id, created_at)
-VALUES (DEFAULT, $1, now())
+VALUES (DEFAULT, $1, NOW())
 RETURNING id, device_id, created_at
 `
 

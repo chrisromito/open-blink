@@ -64,3 +64,7 @@ func NewTestAppDb() (*AppDb, error) {
 	}
 	return appDb, nil
 }
+
+func CleanupTestData(ctx context.Context, q *db.Queries) error {
+	return q.DeleteTestDevices(ctx)
+}
