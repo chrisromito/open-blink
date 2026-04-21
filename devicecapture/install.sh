@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-cd $HOME/open-blink
+cd $HOME/thumb/open-blink
 echo "Setting permissions on run.sh..."
 chmod +x ./run.sh
 echo "Setting up systemd service"

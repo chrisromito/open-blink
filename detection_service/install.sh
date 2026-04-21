@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 sudo apt install -y python3-picamera2 --no-install-recommends
 sudo apt install -y iptables
-cd $HOME/open-blink/detection_service
+cd $HOME/thumb/open-blink/detection_service
 echo "Setting up venv..."
 python3 -m venv venv
 source ./venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.in
 echo "Setting permissions on run.sh..."
 chmod +x ./run.sh
 echo "Setting up systemd service"
