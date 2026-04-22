@@ -4,8 +4,8 @@ After=network-online.target
 
 [Service]
 ExecStartPre=/bin/sleep 3
-ExecStart=/home/chris/open-blink/run.sh
-WorkingDirectory=/home/chris/open-blink
+ExecStart=/home/chris/thumb/open-blink/run.sh
+WorkingDirectory=/home/chris/thumb/open-blink
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

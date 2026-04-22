@@ -1,5 +1,5 @@
-import logging
 import time
+
 from shared.log_utils import logger
 
 
