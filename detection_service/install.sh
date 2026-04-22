@@ -15,7 +15,7 @@ cp ./systemd/open-blink-detection.service ./systemd/open-blink-detection.service
 PLACEHOLDER_APP_PATH=$(pwd)
 PLACEHOLDER_USER=$(whoami)
 sed -i "s|PLACEHOLDER_APP_PATH|$PLACEHOLDER_APP_PATH|g" ./systemd/open-blink-detection.service
-sed -i "s|PLACEHOLDER_USER|PLACEHOLDER_USER|g" ./systemd/open-blink-detection.service
+sed -i "s|PLACEHOLDER_USER|$PLACEHOLDER_USER|g" ./systemd/open-blink-detection.service
 # Copy service config to systemd path, reload, enable, & start it
 sudo cp ./systemd/open-blink-detection.service /etc/systemd/system/open-blink-detection.service
 echo "Reloading systemctl..."
