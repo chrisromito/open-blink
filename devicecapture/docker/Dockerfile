@@ -10,7 +10,6 @@ COPY ../go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-COPY ./devices.json ./bin/devices.json
 RUN go build -v -o ./bin/devicecapture ./cmd/devicecapture
 
 FROM base AS final

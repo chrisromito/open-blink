@@ -76,7 +76,7 @@ func (mp *MessageProcessor) processMessage(ctx context.Context, m mqtt.Message) 
 	}
 
 	// Create camera service instance for this message
-	cameraService := camera.NewCameraService(mp.app.AppDeps, detection.NewObjectDetectionService(mp.app.Conf))
+	cameraService := camera.NewCameraService(mp.app.Conf, mp.app.AppDeps, detection.NewObjectDetectionService(mp.app.Conf))
 
 	sesh, err := cameraService.StartStream(msgCtx, msg.DeviceId)
 	if err != nil {
