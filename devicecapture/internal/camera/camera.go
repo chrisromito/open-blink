@@ -26,9 +26,10 @@ type CameraService struct {
 	mu            sync.Mutex
 }
 
-func NewCameraService(deps *domain.Deps, detector detection.ObjectDetector) *CameraService {
+func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection.ObjectDetector) *CameraService {
 	ids := make([]string, 10)
 	cs := &CameraService{
+		Config:        conf,
 		DeviceRepo:    deps.DeviceRepo,
 		FrameRepo:     deps.FrameRepo,
 		DetectionRepo: deps.DetectionRepo,
@@ -146,6 +147,9 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 				if !ok {
 					log.Print("CameraService -> outChan not ok, returning")
 					return
+				}
+				if session == nil {
+					continue
 				}
 				fp := receiver.FramePath(s.Config.VideoPath, session, img)
 				e := s.receiveFrame(ctx, id, fp, img)
