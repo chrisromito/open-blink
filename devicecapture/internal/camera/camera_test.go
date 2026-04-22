@@ -2,6 +2,7 @@ package camera
 
 import (
 	"context"
+	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
 	"testing"
@@ -15,7 +16,13 @@ import (
 func TestCameraService_Start(t *testing.T) {
 	deps := domain.NewMockDeps()
 	detect := detection.MockDetectionService{}
-	svc := NewCameraService(deps, detect)
+	conf := config.Config{
+		MqttHost:            "tcp://0.0.0.0:1883",
+		DbUrl:               "postgres://postgres:postgres@localhost:5432/openblink",
+		VideoPath:           "",
+		DetectionServiceUrl: "",
+	}
+	svc := NewCameraService(&conf, deps, detect)
 
 	tests := []struct {
 		deviceId string
