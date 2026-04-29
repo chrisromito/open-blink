@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"devicecapture/internal/domain/receiver"
+	"errors"
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"
@@ -88,6 +89,10 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 
 	for {
 		b, decErr := dec.DecodeRaw()
+		ctxErr := ctx.Err()
+		if ctxErr != nil {
+			return nil
+		}
 		if decErr != nil {
 			log.Printf("camera.api -> stream -> Error decoding: %v", err)
 			return decErr
@@ -106,6 +111,7 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	defer func(stream *mjpeg.Stream) {
 		_ = stream.Close()
 	}(stream)
+	stop := make(chan error)
 	done := make(chan error)
 	defer close(done)
 
@@ -116,12 +122,17 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 		for {
 			select {
 			case <-ticker.C:
+				ctxErr := ctx.Err()
+				if ctxErr != nil {
+					return
+				}
 				data := stream.Current()
 				if len(data) > 0 {
 					imgChan <- NewFrame(data)
 				}
-			case d := <-done:
-				log.Printf("camera.api.StreamFrames goroutine 1 exiting because done chan %v", d)
+			case s := <-stop:
+				done <- s
+				log.Printf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
 				return
 			}
 		}
@@ -132,8 +143,14 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 		defer wg.Done()
 		wg.Add(1)
 		err := a.Stream(ctx, &wg, stream)
-		done <- err
+		if errors.Is(err, context.DeadlineExceeded) {
+			stop <- nil
+		} else {
+			stop <- err
+		}
+		return
 	}()
 	wg.Wait()
-	return nil
+	value := <-stop
+	return value
 }

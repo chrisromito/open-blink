@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func HomePageHandler(a *app.App) http.HandlerFunc {
+func HomePageHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("HomePageHandler - Request: %s %s", r.Method, r.URL.Path)
 
@@ -82,7 +82,6 @@ func HeartBeatListHandler(a *app.App) http.HandlerFunc {
 // StreamProxyHandler /image-stream/{id}
 func StreamProxyHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Print("GET /image-stream/{id}")
 		deviceId := r.PathValue("id")
 		log.Printf("GET /image-stream/%s", deviceId)
 		// validate the domain ID

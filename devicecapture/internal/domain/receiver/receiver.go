@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// FrameRepository interface for storing frames
+type FrameRepository interface {
+	StartSession(deviceId string) (*CaptureSession, error)
+	EndSession() error
+	ReceiveFrame(frame Frame, framePath string) error
+	ReceiveFrameStream(ctx context.Context, imgChan <-chan Frame) error
+}
+
 type Frame struct {
 	Buf       []byte
 	Image     image.Image
@@ -16,10 +24,11 @@ type Frame struct {
 
 // CaptureSession A reference to when we started capturing Frames from a Camera
 type CaptureSession struct {
-	DeviceID  string
-	StartedAt int64
-	f         *Frame
-	m         sync.Mutex
+	DeviceID   string
+	StartedAt  int64
+	f          *Frame
+	m          sync.Mutex
+	frameCount int
 }
 
 func NewCaptureSession(deviceId string) *CaptureSession {
@@ -35,6 +44,7 @@ func (cr *CaptureSession) SetLastFrame(fr *Frame) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 	cr.f = fr
+	cr.frameCount = cr.frameCount + 1
 }
 
 func (cr *CaptureSession) GetFrame() *Frame {
@@ -43,12 +53,10 @@ func (cr *CaptureSession) GetFrame() *Frame {
 	return cr.f
 }
 
-// FrameRepository interface for storing frames
-type FrameRepository interface {
-	StartSession(deviceId string) (*CaptureSession, error)
-	EndSession() error
-	ReceiveFrame(frame Frame, framePath string) error
-	ReceiveFrameStream(ctx context.Context, imgChan <-chan Frame) error
+func (cr *CaptureSession) GetFrameCount() int {
+	cr.m.Lock()
+	defer cr.m.Unlock()
+	return cr.frameCount
 }
 
 func FramePath(prefix string, session *CaptureSession, frame Frame) string {

@@ -9,8 +9,6 @@ import (
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
-	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
 	"time"
@@ -27,7 +25,7 @@ type StartStreamMessage struct {
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper(clientID, conf.MqttHost)
+	client, cerr := pubsub.BrokerHelper(clientID, conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -45,26 +43,32 @@ func main() {
 	}
 
 	//-- Repos
-	cameraRepo := repos.NewPgDeviceRepo(db.GetQueries())
+	log.Print("Sleeping 60 seconds before we cleanup & setup test data...")
+	time.Sleep(60 * time.Second)
+	log.Print("Cleaning up old test data & refreshing dataset")
+	q := db.GetQueries()
+	deviceRepo := repos.NewPgDeviceRepo(q)
 	ctx := context.Background()
-	devices, camErr := cameraRepo.ListDevices(ctx)
+	// Clean up the test data
+	err := q.DeleteTestDevices(ctx)
+	if err != nil {
+		log.Fatalf("failed to delete test devices due to err %v", err)
+	}
+	log.Println("Deleted test devices...")
+	devices, camErr := deviceRepo.ListDevices(ctx)
 	if camErr != nil {
 		log.Fatalf("error listing devices %v", camErr)
 	}
 	for _, d := range devices {
-		payload := StartStreamMessage{
-			DeviceId: d.StringId(),
+		delErr := deviceRepo.DeleteDevice(ctx, d.ID)
+		if delErr != nil {
+			log.Fatalf("error deleting device %v", d.ID)
 		}
-		message, err := json.Marshal(payload)
-		if err != nil {
-			log.Fatalf("error marhsalling message: %v", err)
-		}
-		err = client.Publish(topic, message)
-		if err != nil {
-			log.Fatalf("Error publishing message: %v", err)
-		}
-		fmt.Printf("Published message: %s\n", message)
-
+	}
+	// Create a test device record
+	_, err = q.CreateTestDevice(ctx)
+	if err != nil {
+		log.Fatalf("failed to create test device due to err %v", err)
 	}
 }
 

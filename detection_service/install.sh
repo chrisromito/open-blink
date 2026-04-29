@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 sudo apt install -y python3-picamera2 --no-install-recommends
 sudo apt install -y iptables
-cd $HOME/thumb/open-blink/detection_service
 echo "Setting up venv..."
 python3 -m venv venv
 source ./venv/bin/activate
