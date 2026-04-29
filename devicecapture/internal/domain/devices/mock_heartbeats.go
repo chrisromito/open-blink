@@ -17,7 +17,7 @@ func NewMockHeartbeat() *MockHeartbeat {
 	}
 }
 
-func (h *MockHeartbeat) GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]*Heartbeat, error) {
+func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceId int64) ([]*Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (h *MockHeartbeat) GetDeviceHeartBeats(ctx context.Context, deviceId int64)
 	return result, nil
 }
 
-func (h *MockHeartbeat) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]*Heartbeat, error) {
+func (h *MockHeartbeat) HeartBeatsAfter(_ context.Context, createdAt time.Time) ([]*Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (h *MockHeartbeat) HeartBeatsAfter(ctx context.Context, createdAt time.Time
 	return result, nil
 }
 
-func (h *MockHeartbeat) LatestBeats(ctx context.Context) ([]*LatestBeatsRow, error) {
+func (h *MockHeartbeat) LatestBeats(_ context.Context) ([]*LatestBeatsRow, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -73,7 +73,7 @@ func (h *MockHeartbeat) LatestBeats(ctx context.Context) ([]*LatestBeatsRow, err
 }
 
 // RecordBeat Record a DeviceHeartbeat
-func (h *MockHeartbeat) RecordBeat(ctx context.Context, deviceId int64) (*Heartbeat, error) {
+func (h *MockHeartbeat) RecordBeat(_ context.Context, deviceId int64) (*Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -87,7 +87,7 @@ func (h *MockHeartbeat) RecordBeat(ctx context.Context, deviceId int64) (*Heartb
 	return heartbeat, nil
 }
 
-func (h *MockHeartbeat) DeleteBeats(ctx context.Context, deviceId int64) error {
+func (h *MockHeartbeat) DeleteBeats(_ context.Context, deviceId int64) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

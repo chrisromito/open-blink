@@ -52,7 +52,7 @@ func main() {
 		repos.NewPgHeartbeatRepo(queries),
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
-		pubsub.NewMqttReceiver(&client, conf.VideoPath),
+		pubsub.NewMqttReceiver(&client, conf),
 	)
 
 	//-- App
@@ -64,6 +64,9 @@ func main() {
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
 	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))
 	http.HandleFunc("/detection-stream", server.DetectionStreamHandler(a))
+
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	//lis, nErr := net.Listen("tcp", ":")
 

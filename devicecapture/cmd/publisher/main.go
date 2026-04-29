@@ -16,12 +16,7 @@ import (
 
 const (
 	clientID = "go-mqtt-publisher"
-	topic    = "start-stream"
 )
-
-type StartStreamMessage struct {
-	DeviceId string `json:"device_id"`
-}
 
 func main() {
 	conf := config.NewConfig()
