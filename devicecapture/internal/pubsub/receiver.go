@@ -3,6 +3,7 @@ package pubsub
 
 import (
 	"context"
+	"devicecapture/internal/config"
 	"devicecapture/internal/domain/receiver"
 	"fmt"
 	"image/jpeg"
@@ -14,17 +15,15 @@ import (
 type MqttReceiver struct {
 	client    *MqttClient
 	videoPath string
+	serverIp  string
 	Session   *receiver.CaptureSession
 }
 
-func NewMqttReceiver(client *MqttClient, videoPath string) *MqttReceiver {
-	vp := videoPath
-	if videoPath == "" {
-		vp = "/videos"
-	}
+func NewMqttReceiver(client *MqttClient, conf *config.Config) *MqttReceiver {
 	return &MqttReceiver{
 		client:    client,
-		videoPath: vp,
+		videoPath: conf.VideoPath,
+		serverIp:  conf.ThisIp,
 	}
 }
 
@@ -80,7 +79,7 @@ func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) erro
 		log.Printf("error encoding frame to JPEG for %s", fp)
 		return err2
 	}
-	payload, err3 := r.FrameToJson(frame)
+	payload, err3 := r.FrameToJson(r.serverIp, frame)
 	if err3 != nil {
 		log.Printf("error from FrameToJson for %s", fp)
 		return err3
@@ -134,9 +133,9 @@ func (r *MqttReceiver) ReceiveFrameStream(ctx context.Context, imgChan <-chan re
 	return nil
 }
 
-func (r *MqttReceiver) FrameToJson(frame receiver.Frame) (string, error) {
+func (r *MqttReceiver) FrameToJson(thisIp string, frame receiver.Frame) (string, error) {
 	fp := receiver.FramePath(r.videoPath, r.Session, frame)
-	payload, err := receiver.FrameJson(r.Session.DeviceID, fp, frame)
+	payload, err := receiver.FrameJson(thisIp, r.Session.DeviceID, fp, frame)
 	if err != nil {
 		return "", err
 	}

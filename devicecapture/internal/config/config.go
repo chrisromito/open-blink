@@ -13,6 +13,7 @@ type Config struct {
 	DbUrl               string
 	VideoPath           string
 	DetectionServiceUrl string
+	ThisIp              string // Used to build URLs, ex for images
 }
 
 func NewConfig() *Config {
@@ -24,7 +25,10 @@ func NewConfig() *Config {
 	}
 	mu := os.Getenv("MQTT_USER")
 	mp := os.Getenv("MQTT_PASSWORD")
-
+	ip := os.Getenv("THIS_IP")
+	if ip == "" {
+		ip = "http://0.0.0.0:4000"
+	}
 	db := os.Getenv("DB_URL")
 	if db == "" {
 		db = "postgres://postgres:postgres@localhost:5432/openblink"
@@ -42,5 +46,6 @@ func NewConfig() *Config {
 		DbUrl:               db,
 		VideoPath:           "/videos",
 		DetectionServiceUrl: detectionService,
+		ThisIp:              ip,
 	}
 }

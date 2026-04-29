@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"devicecapture/internal/config"
 	"devicecapture/internal/domain/receiver"
 	"image"
 	"image/color"
@@ -10,12 +11,25 @@ import (
 	"time"
 )
 
+func getTestConfig(videoPath string) *config.Config {
+	if videoPath == "" {
+		videoPath = "/tmp/videos"
+	}
+	return &config.Config{
+		MqttHost:            "",
+		DbUrl:               "postgres://postgres:postgres@postgres:5432/test_openblink",
+		VideoPath:           videoPath,
+		DetectionServiceUrl: "http://0.0.0.0:4000",
+		ThisIp:              "http://0.0.0.0:8000",
+	}
+}
+
 // createTestImage creates a simple test image
 func createTestImage() image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	for y := 0; y < 100; y++ {
 		for x := 0; x < 100; x++ {
-			img.Set(x, y, color.RGBA{uint8(x), uint8(y), 255, 255})
+			img.Set(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: 255, A: 255})
 		}
 	}
 	return img
@@ -64,7 +78,7 @@ func TestNewMqttReceiver(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := NewMqttReceiver(tt.client, "")
+			rec := NewMqttReceiver(tt.client, getTestConfig(""))
 
 			if rec == nil {
 				t.Fatal("NewMqttReceiver returned nil")
@@ -83,7 +97,7 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 
 	// Create a test client (doesn't need to be connected for this test)
 	client := &MqttClient{}
-	rec := NewMqttReceiver(client, tempDir)
+	rec := NewMqttReceiver(client, getTestConfig(tempDir))
 
 	deviceId := "test-domain-123"
 
@@ -116,14 +130,15 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 func TestMqttReceiver_FrameToJson(t *testing.T) {
 	client := &MqttClient{}
 	vp := "test-path"
-	rec := NewMqttReceiver(client, vp)
+	conf := getTestConfig(vp)
+	rec := NewMqttReceiver(client, conf)
 
 	// Set up a test session
 	rec.Session = receiver.NewCaptureSession("test-domain")
 
 	frame := createTestFrame(9876543210)
 
-	jsonStr, err := rec.FrameToJson(frame)
+	jsonStr, err := rec.FrameToJson(conf.ThisIp, frame)
 	if err != nil {
 		t.Fatalf("FrameToJson failed: %v", err)
 	}
@@ -152,7 +167,7 @@ func TestFrameJson(t *testing.T) {
 	fileName := "/path/to/test.jpg"
 	frame := createTestFrame(1234567890)
 
-	jsonStr, err := receiver.FrameJson(deviceId, fileName, frame)
+	jsonStr, err := receiver.FrameJson("", deviceId, fileName, frame)
 	if err != nil {
 		t.Fatalf("FrameJson failed: %v", err)
 	}
@@ -185,7 +200,7 @@ func TestMqttReceiver_EndSession(t *testing.T) {
 		// Mock the Publish method to capture calls
 	}
 
-	rec := NewMqttReceiver(client, "/tmp")
+	rec := NewMqttReceiver(client, getTestConfig("/tmp"))
 	rec.Session = receiver.NewCaptureSession("test-domain")
 	// This test will fail in the actual publish call since we don't have a real MQTT client
 	// but we can test that the method constructs the correct topic and payload
@@ -209,7 +224,7 @@ func TestMqttReceiver_Integration(t *testing.T) {
 	defer cleanup()
 
 	client := &MqttClient{}
-	rec := NewMqttReceiver(client, tempDir)
+	rec := NewMqttReceiver(client, getTestConfig(tempDir))
 
 	deviceId := "integration-test-domain"
 
@@ -228,7 +243,7 @@ func TestMqttReceiver_Integration(t *testing.T) {
 
 	// Test JSON generation
 	frame := createTestFrame(time.Now().UnixMilli())
-	jsonStr, err := rec.FrameToJson(frame)
+	jsonStr, err := rec.FrameToJson(tempDir, frame)
 	if err != nil {
 		t.Fatalf("FrameToJson failed: %v", err)
 	}
@@ -253,7 +268,7 @@ func BenchmarkFrameJson(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := receiver.FrameJson(deviceId, fileName, frame)
+		_, err := receiver.FrameJson("", deviceId, fileName, frame)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -262,14 +277,14 @@ func BenchmarkFrameJson(b *testing.B) {
 
 func BenchmarkMqttReceiver_FrameToJson(b *testing.B) {
 	client := &MqttClient{}
-	rec := NewMqttReceiver(client, "/tmp")
+	rec := NewMqttReceiver(client, getTestConfig("/tmp/videos"))
 	rec.Session = receiver.NewCaptureSession("bench-domain")
 
 	frame := createTestFrame(9876543210)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := rec.FrameToJson(frame)
+		_, err := rec.FrameToJson("/tmp", frame)
 		if err != nil {
 			b.Fatal(err)
 		}

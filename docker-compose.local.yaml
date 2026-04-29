@@ -15,7 +15,7 @@ services:
     networks:
       - openblink
     volumes:
-      - ./videos:/videos
+      - ./devicecapture/static/videos:/videos
     depends_on:
       - mosquitto
       - postgres
@@ -31,7 +31,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./videos:/videos
+      - ./devicecapture/static/videos:/videos
       - ./devicecapture/static:/usr/src/app/static
     depends_on:
       - mosquitto

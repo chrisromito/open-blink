@@ -49,7 +49,7 @@ func (fr *MockFrameRepo) EndSession() error {
 }
 
 // ReceiveFrame MockFrameRepo implements receiver.FrameRepository
-func (fr *MockFrameRepo) ReceiveFrame(frame Frame, framePath string) error {
+func (fr *MockFrameRepo) ReceiveFrame(frame Frame, _ string) error {
 	fr.mu.Lock()
 	defer fr.mu.Unlock()
 	fr.lastFrame = &frame

@@ -19,7 +19,7 @@ func NewMockImageRepo() *MockImage {
 	}
 }
 
-func (ir *MockImage) CreateImage(ctx context.Context, params CreateImageParams) (*DeviceImage, error) {
+func (ir *MockImage) CreateImage(_ context.Context, params CreateImageParams) (*DeviceImage, error) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 	if params.DeviceID < 0 {
@@ -39,7 +39,7 @@ func (ir *MockImage) CreateImage(ctx context.Context, params CreateImageParams) 
 	return img, nil
 }
 
-func (ir *MockImage) GetImages(ctx context.Context, deviceId int64) ([]*DeviceImage, error) {
+func (ir *MockImage) GetImages(_ context.Context, deviceId int64) ([]*DeviceImage, error) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 	var imgs []*DeviceImage

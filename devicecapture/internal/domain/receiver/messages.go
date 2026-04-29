@@ -6,6 +6,7 @@ type FrameMsg struct {
 	DeviceId  string `json:"device_id"`
 	FileName  string `json:"file_name"`
 	Timestamp int64  `json:"timestamp"`
+	Url       string `json:"url"`
 }
 
 func (fm *FrameMsg) MarshalJSON() ([]byte, error) {
@@ -18,11 +19,13 @@ func (fm *FrameMsg) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-func FrameJson(deviceId string, filePath string, fr Frame) (string, error) {
+func FrameJson(thisIp string, deviceId string, filePath string, fr Frame) (string, error) {
 	var msg = FrameMsg{
 		DeviceId:  deviceId,
 		FileName:  filePath,
-		Timestamp: fr.Timestamp}
+		Timestamp: fr.Timestamp,
+		Url:       thisIp + filePath,
+	}
 	value, err := json.Marshal(msg)
 	if err != nil {
 		return "", err

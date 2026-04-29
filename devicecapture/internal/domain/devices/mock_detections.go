@@ -17,7 +17,7 @@ func NewMockDetection() *MockDetection {
 	}
 }
 
-func (d *MockDetection) GetDetectionsAfter(ctx context.Context, params QueryParams) ([]*Detection, error) {
+func (d *MockDetection) GetDetectionsAfter(_ context.Context, params QueryParams) ([]*Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (d *MockDetection) GetDetectionsAfter(ctx context.Context, params QueryPara
 	return result, nil
 }
 
-func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params QueryParams) ([]*Detection, error) {
+func (d *MockDetection) GetDeviceDetectionsAfter(_ context.Context, params QueryParams) ([]*Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params Que
 	return result, nil
 }
 
-func (d *MockDetection) CreateDetection(ctx context.Context, params CreateDetectionParams) (*Detection, error) {
+func (d *MockDetection) CreateDetection(_ context.Context, params CreateDetectionParams) (*Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	detection := &Detection{
@@ -74,7 +74,7 @@ func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDet
 	return value, nil
 }
 
-func (d *MockDetection) DeleteDetections(ctx context.Context, deviceId int64) error {
+func (d *MockDetection) DeleteDetections(_ context.Context, deviceId int64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

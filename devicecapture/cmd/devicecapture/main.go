@@ -46,7 +46,7 @@ func main() {
 		repos.NewPgHeartbeatRepo(queries),
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
-		pubsub.NewMqttReceiver(&client, conf.VideoPath),
+		pubsub.NewMqttReceiver(&client, conf),
 	)
 
 	//-- App

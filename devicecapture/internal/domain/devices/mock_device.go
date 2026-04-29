@@ -56,7 +56,7 @@ func isLetter(s string) bool {
 }
 
 // CreateDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) CreateDevice(ctx context.Context, params CreateDeviceParams) (*Device, error) {
+func (mr *MockRepo) CreateDevice(_ context.Context, params CreateDeviceParams) (*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	dev := GetMockDevice()
@@ -69,7 +69,7 @@ func (mr *MockRepo) CreateDevice(ctx context.Context, params CreateDeviceParams)
 }
 
 // GetDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) GetDevice(ctx context.Context, deviceId int64) (*Device, error) {
+func (mr *MockRepo) GetDevice(_ context.Context, deviceId int64) (*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
@@ -81,7 +81,7 @@ func (mr *MockRepo) GetDevice(ctx context.Context, deviceId int64) (*Device, err
 }
 
 // ListDevices MockRepo implements DeviceRepository
-func (mr *MockRepo) ListDevices(ctx context.Context) ([]*Device, error) {
+func (mr *MockRepo) ListDevices(_ context.Context) ([]*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	dSlice := make([]*Device, len(mr.ds))
@@ -92,7 +92,7 @@ func (mr *MockRepo) ListDevices(ctx context.Context) ([]*Device, error) {
 }
 
 // UpdateDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) UpdateDevice(ctx context.Context, params UpdateDeviceParams) (*Device, error) {
+func (mr *MockRepo) UpdateDevice(_ context.Context, params UpdateDeviceParams) (*Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
@@ -105,7 +105,7 @@ func (mr *MockRepo) UpdateDevice(ctx context.Context, params UpdateDeviceParams)
 	return nil, errors.New("notfound")
 }
 
-func (mr *MockRepo) DeleteDevice(ctx context.Context, id int64) error {
+func (mr *MockRepo) DeleteDevice(_ context.Context, id int64) error {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	var found = false
@@ -121,7 +121,7 @@ func (mr *MockRepo) DeleteDevice(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (mr *MockRepo) DeleteTestDevices(ctx context.Context) error {
+func (mr *MockRepo) DeleteTestDevices(_ context.Context) error {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for idx, d := range mr.ds {

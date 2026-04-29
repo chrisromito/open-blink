@@ -7,7 +7,7 @@ services:
     networks:
       - openblink
     volumes:
-      - ./videos:/videos
+      - ./devicecapture/static/videos:/videos
     depends_on:
       - postgres
     env_file: .env
@@ -22,12 +22,23 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./videos:/videos
+      - ./devicecapture/static/videos:/videos
       - ./devicecapture/static:/usr/src/app/static
     depends_on:
       - postgres
     env_file: .env
     restart: unless-stopped
+  test:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/test.Dockerfile
+    networks:
+      - openblink
+    volumes:
+      - ./devicecapture:/usr/src/app
+    depends_on:
+      - postgres
+    env_file: .env.example
   postgres:
     image: postgres:16-alpine3.22
     environment:
