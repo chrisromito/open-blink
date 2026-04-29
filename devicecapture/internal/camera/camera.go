@@ -7,6 +7,8 @@ import (
 	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/pubsub"
+	"encoding/json"
 	"errors"
 	"log"
 	"slices"
@@ -22,11 +24,12 @@ type CameraService struct {
 	DetectionRepo devices.DetectionRepo
 	Detector      detection.ObjectDetector
 	ImageRepo     devices.ImageRepo
+	mqttClient    *pubsub.MqttClient
 	connectedIds  []string
 	mu            sync.Mutex
 }
 
-func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection.ObjectDetector) *CameraService {
+func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection.ObjectDetector, qtClient *pubsub.MqttClient) *CameraService {
 	ids := make([]string, 10)
 	cs := &CameraService{
 		Config:        conf,
@@ -36,6 +39,7 @@ func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection
 		ImageRepo:     deps.ImageRepo,
 		connectedIds:  ids,
 		Detector:      detector,
+		mqttClient:    qtClient,
 		mu:            sync.Mutex{},
 	}
 	return cs
@@ -111,10 +115,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 		done <- apiErr
 		if apiErr != nil {
 			log.Printf("domain -> Start -> api worker -> Error streaming frames: %v", apiErr)
-			return
-		} else {
-			return
 		}
+		return
 	}()
 
 	// imgChan goroutine pulls from imgChan so they can be consumed via outChan
@@ -152,7 +154,9 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 					continue
 				}
 				fp := receiver.FramePath(s.Config.VideoPath, session, img)
-				e := s.receiveFrame(ctx, id, fp, img)
+				// Only run inference on 1/5 frames
+				doDetect := session.GetFrameCount()%5 == 0
+				e := s.receiveFrame(ctx, id, fp, img, doDetect)
 				if e != nil {
 					log.Fatalf("receiveFrame threw %v", e)
 					return
@@ -165,8 +169,11 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	return session, nil
 }
 
-func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath string, frame receiver.Frame) error {
+func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath string, frame receiver.Frame, detect bool) error {
 	var wg sync.WaitGroup
+	if cErr := ctx.Err(); cErr != nil {
+		return nil
+	}
 
 	wg.Add(1)
 	go func() {
@@ -174,6 +181,10 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: id, ImagePath: framePath})
 		if err != nil {
 			log.Printf("failed to save image to %s", framePath)
+			log.Printf("    image save err %v", err)
+			return
+		}
+		if !detect {
 			return
 		}
 		req := detection.Req{
@@ -186,13 +197,32 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 		} else {
 			log.Printf("\n\nCameraService: writing detections: %v", detections)
 			// Loop, transpose items, and write to the repo
-			imageID := &imageRecord.ID
+			topic := "detection/" + strconv.Itoa(int(id))
+			var pgDetections []devices.CreateDetectionParams
+			// Set up the slice of DB params
 			for _, d := range detections {
-				params := detectionServiceToPg(id, imageID, d)
-				_, detectionErr := s.DetectionRepo.CreateDetection(ctx, params)
-				if detectionErr != nil {
-					log.Printf("error writing detections to DB %v", detectionErr)
+				pgDetections = append(pgDetections, detectionServiceToPg(id, &imageRecord.ID, d))
+			}
+			// Write to the DB
+			toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
+			if err != nil {
+				log.Printf("error writing detections to detection repo %v", err)
+				return
+			}
+			// Loop through, publish each detection
+			for _, d := range toPublish {
+				payload, jsonErr := json.Marshal(d)
+				if jsonErr != nil {
+					log.Printf("error marshalling %v to JSON: %v", d, jsonErr)
 					return
+				}
+				// publish successful detections
+				qtErr := s.mqttClient.Publish(topic, payload)
+				if qtErr != nil {
+					log.Printf("error publishing %v: %v", payload, qtErr)
+					return
+				} else {
+					log.Printf("published %v to %s", payload, topic)
 				}
 			}
 		}

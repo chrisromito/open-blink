@@ -28,7 +28,7 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-deviceserver", conf.MqttHost)
+	client, cerr := pubsub.BrokerHelper("go-deviceserver", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -59,10 +59,13 @@ func main() {
 	a := app.NewApp(conf, &client, db, deps)
 
 	// Register HTTP endpoints
-	http.HandleFunc("/", server.HomePageHandler(a))
+	http.HandleFunc("/", server.HomePageHandler())
 	http.HandleFunc("/device", server.DeviceListHandler(a))
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
 	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))
+	http.HandleFunc("/detection-stream", server.DetectionStreamHandler(a))
+
+	//lis, nErr := net.Listen("tcp", ":")
 
 	appServer := &http.Server{
 		Addr: ":4000",

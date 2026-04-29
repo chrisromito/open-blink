@@ -1,0 +1,114 @@
+services:
+  blink_detection_service:
+    container_name: blink_detection_service
+    build: ./detection_service
+    networks:
+      - openblink
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+  devicecapture:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/Dockerfile
+    container_name: devicecapture
+    networks:
+      - openblink
+    volumes:
+      - ./videos:/videos
+    depends_on:
+      - mosquitto
+      - postgres
+    env_file: .env.example
+    restart: unless-stopped
+  deviceserver:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/deviceserver.Dockerfile
+    container_name: deviceserver
+    networks:
+      - openblink
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./videos:/videos
+      - ./devicecapture/static:/usr/src/app/static
+    depends_on:
+      - mosquitto
+      - postgres
+    env_file: .env.example
+    restart: unless-stopped
+  mock_device:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/mockdevice.Dockerfile
+    container_name: mock_device
+    networks:
+      - openblink
+    depends_on:
+      - mosquitto
+      - postgres
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+  publisher:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/publisher.Dockerfile
+    container_name: publisher
+    networks:
+      - openblink
+    depends_on:
+      - test
+      - mosquitto
+      - postgres
+    env_file: .env.example
+  test:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/test.Dockerfile
+    networks:
+      - openblink
+    volumes:
+      - ./devicecapture:/usr/src/app
+    depends_on:
+      - mosquitto
+      - postgres
+    env_file: .env.example
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    networks:
+      - openblink
+    ports:
+      - "1883:1883" # Standard MQTT port
+      - "9001:9001" # Websocket port for MQTT
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:rw
+      - ./mosquitto/data:/mosquitto/data:rw
+      - ./mosquitto/log:/mosquitto/log:rw
+    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine3.22
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    networks:
+      - openblink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./devicecapture/internal/postgres/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./devicecapture/docker/init-databases.sql:/docker-entrypoint-initdb.d/02-init-databases.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+networks:
+  openblink:
+    driver: bridge
+volumes:
+  postgres_data:

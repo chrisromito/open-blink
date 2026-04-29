@@ -5,6 +5,7 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
+	"devicecapture/internal/pubsub"
 	"testing"
 	"time"
 )
@@ -22,7 +23,8 @@ func TestCameraService_Start(t *testing.T) {
 		VideoPath:           "",
 		DetectionServiceUrl: "",
 	}
-	svc := NewCameraService(&conf, deps, detect)
+	client := &pubsub.MqttClient{}
+	svc := NewCameraService(&conf, deps, detect, client)
 
 	tests := []struct {
 		deviceId string

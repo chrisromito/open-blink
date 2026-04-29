@@ -1,19 +1,4 @@
 services:
-  blink_detection_service:
-    container_name: blink_detection_service
-    build: ./detection_service
-    depends_on:
-      - mosquitto
-    networks:
-      - openblink
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./videos:/videos
-      - ./devicecapture:/usr/src/app
-    environment:
-      - MQTT_HOST=mosquitto
-    restart: unless-stopped
   devicecapture:
     build:
       context: ./devicecapture
@@ -24,7 +9,6 @@ services:
     volumes:
       - ./videos:/videos
     depends_on:
-      - mosquitto
       - postgres
     env_file: .env
     restart: unless-stopped
@@ -41,49 +25,8 @@ services:
       - ./videos:/videos
       - ./devicecapture/static:/usr/src/app/static
     depends_on:
-      - mosquitto
       - postgres
     env_file: .env
-    restart: unless-stopped
-  mock_device:
-    build:
-      context: ./devicecapture
-      dockerfile: docker/mockdevice.Dockerfile
-    container_name: mock_device
-    networks:
-      - openblink
-    depends_on:
-      - mosquitto
-      - postgres
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
-  test:
-    build:
-      context: ./devicecapture
-      dockerfile: docker/test.Dockerfile
-    networks:
-      - openblink
-    volumes:
-      - ./devicecapture:/usr/src/app
-    depends_on:
-      - mosquitto
-      - postgres
-    environment:
-      - DB_URL=postgres://postgres:postgres@postgres:5432/test_openblink
-    env_file: .env
-  mosquitto:
-    image: eclipse-mosquitto:2
-    container_name: mosquitto
-    networks:
-      - openblink
-    ports:
-      - "1883:1883" # Standard MQTT port
-      - "9001:9001" # Websocket port for MQTT
-    volumes:
-      - ./mosquitto/config:/mosquitto/config:rw
-      - ./mosquitto/data:/mosquitto/data:rw
-      - ./mosquitto/log:/mosquitto/log:rw
     restart: unless-stopped
   postgres:
     image: postgres:16-alpine3.22
