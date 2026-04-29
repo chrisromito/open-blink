@@ -71,13 +71,8 @@ func mjpegHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("mockdevice -> successfully sent frame")
 		}
-		// Optional: control frame rate
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 		log.Printf("mockdevice -> sleeping before we continue the loop...")
-		//select {
-		//case <-ctx.Done():
-		//	return
-		//}
 	}
 }
 

@@ -3,22 +3,26 @@ package main
 import (
 	"context"
 	"devicecapture/internal/app"
+	"devicecapture/internal/camera"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
+	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
+	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost)
+	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -51,14 +55,9 @@ func main() {
 
 	a := app.NewApp(conf, &client, db, deps)
 
-	// Create message processor with 3 workers
-	processor := NewMessageProcessor(a, 3)
-	processor.Start(appCtx)
-	defer processor.Shutdown()
-
 	// MQTT goroutine
 	go func() {
-		if err := SubscribeToStartStreamTopic(appCtx, processor, &client); err != nil {
+		if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
 			log.Printf("Error in MQTT subscription: %v", err)
 			cancel() // Cancel context to trigger shutdown
 		}
@@ -68,48 +67,95 @@ func main() {
 	<-sigChan
 }
 
-func SubscribeToStartStreamTopic(ctx context.Context, processor *MessageProcessor, client *pubsub.MqttClient) error {
-	topics := []string{"start-stream", "motion-detected"}
+func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
+	//topics := []string{"start-stream", "motion-detected"}
 
+	inChan := make(chan mqtt.Message, 3)
+	queueChan := make(chan mqtt.Message, 3)
 	// Track subscriptions for cleanup
 	var subscriptionWg sync.WaitGroup
 
-	// Subscribe to all topics
-	for _, topic := range topics {
-		subscriptionWg.Add(1)
-		t := topic
-
-		messageHandler := func(_ mqtt.Client, m mqtt.Message) {
-			log.Printf("Received message on topic: %s", t)
-			if !processor.EnqueueMessage(m) {
-				log.Printf("Failed to enqueue message from topic: %s", t)
+	// pull from inChan & push to queueChan
+	subscriptionWg.Add(1)
+	go func() {
+		defer subscriptionWg.Done()
+		for {
+			select {
+			case msg, ok := <-inChan:
+				if !ok {
+					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because inChan !ok")
+					return
+				}
+				log.Printf("pushing message to queueChan")
+				queueChan <- msg
+			case <-ctx.Done():
+				return
 			}
 		}
+	}()
 
-		// Subscribe to topic
-		if err := client.Subscribe(t, messageHandler); err != nil {
-			log.Printf("Error subscribing to topic %s: %v", t, err)
-			subscriptionWg.Done()
-			return err
+	subscriptionWg.Add(1)
+	go func() {
+		defer subscriptionWg.Done()
+		for {
+			select {
+			case m, ok := <-queueChan:
+				// Handle start messages
+				msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				if !ok {
+					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because queueChan !ok")
+					cancel()
+					return
+				}
+
+				log.Printf("Processing message from topic: %s", m.Topic())
+
+				value := m.Payload()
+				var msg app.StartStreamMessage
+				if err := json.Unmarshal(value, &msg); err != nil {
+					log.Printf("failed to unmarshal message: %v", err)
+					cancel()
+					return
+				}
+
+				// Create camera service instance for this message
+				cameraService := camera.NewCameraService(
+					a.Conf,
+					a.AppDeps,
+					detection.NewObjectDetectionService(a.Conf),
+					a.MqttClient,
+				)
+				log.Printf("starting stream for device %s", msg.DeviceId)
+				_, err := cameraService.StartStream(msgCtx, msg.DeviceId)
+				if err != nil {
+					log.Printf("failed to start stream for device %s: %v", msg.DeviceId, err)
+					cancel()
+					return
+				}
+				cancel()
+			case <-ctx.Done():
+				return
+			}
 		}
+	}()
 
-		log.Printf("Successfully subscribed to topic: %s", t)
-
-		// Handle unsubscription on context cancellation
-		go func(topic string) {
-			defer subscriptionWg.Done()
-			<-ctx.Done()
-
-			// Note: The pubsub.MqttClient doesn't expose an Unsubscribe method
-			// but it's handled in the Close() method which is called in main()
-			log.Printf("Context cancelled, will unsubscribe from topic %s on client close", topic)
-		}(t)
+	receiveMessage := func(_ mqtt.Client, m mqtt.Message) {
+		subscriptionWg.Add(1)
+		defer subscriptionWg.Done()
+		log.Printf("received message on topic %v", m.Topic())
+		inChan <- m
 	}
 
-	// Wait for context cancellation
-	<-ctx.Done()
-	log.Println("Context cancelled, waiting for subscription cleanup...")
-	subscriptionWg.Wait()
+	if err := client.Subscribe("start-stream", receiveMessage); err != nil {
+		log.Printf("Error subscribing to topic %s: %v", "start-stream", err)
+		return err
+	}
+	if err := client.Subscribe("motion-detected", receiveMessage); err != nil {
+		log.Printf("Error subscribing to topic %s: %v", "motion-detected", err)
+		return err
+	}
 
+	log.Println("deviceCapture -> waiting for subscription cleanup...")
+	subscriptionWg.Wait()
 	return nil
 }

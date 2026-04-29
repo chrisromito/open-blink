@@ -6,12 +6,12 @@ import (
 	"log"
 )
 
-func BrokerHelper(cId string, broker string) (MqttClient, error) {
+func BrokerHelper(cId, broker, user, password string) (MqttClient, error) {
 	urls := []string{broker, "localhost", "0.0.0.0", "mosquitto", "host.docker.internal"}
 	//brokers := []string{broker, "0.0.0.0:1883", "host.docker.internal:1883"}
 	for _, url := range urls {
 		b := fmt.Sprintf("%s:1883", url)
-		c, err := NewDeviceClient(cId, b)
+		c, err := NewMqttClient(cId, b, user, password)
 		if err == nil {
 			return c, nil
 		}
@@ -29,10 +29,12 @@ func BrokerHelper(cId string, broker string) (MqttClient, error) {
 	}, nil
 }
 
-func NewDeviceClient(cId string, broker string) (MqttClient, error) {
+func NewMqttClient(cId, broker, user, password string) (MqttClient, error) {
 	opt := ClientOptions{
 		ClientID: cId,
 		Broker:   broker,
+		User:     user,
+		Password: password,
 	}
 	c := MqttClient{
 		opts: &opt,
@@ -47,6 +49,8 @@ func NewDeviceClient(cId string, broker string) (MqttClient, error) {
 type ClientOptions struct {
 	Broker   string
 	ClientID string
+	User     string
+	Password string
 }
 
 type MqttClient struct {
@@ -63,6 +67,8 @@ func (m *MqttClient) CopyWithClientId(clientId string) MqttClient {
 	opts := ClientOptions{
 		ClientID: clientId,
 		Broker:   m.opts.Broker,
+		User:     m.opts.User,
+		Password: m.opts.Password,
 	}
 	return MqttClient{
 		opts: &opts,
@@ -91,6 +97,12 @@ func (m *MqttClient) Connect() error {
 	mqOptions := mqtt.NewClientOptions()
 	mqOptions.AddBroker(m.opts.Broker)
 	mqOptions.SetClientID(m.opts.ClientID)
+	if m.opts.User != "" {
+		mqOptions.SetUsername(m.opts.User)
+	}
+	if m.opts.Password != "" {
+		mqOptions.SetPassword(m.opts.Password)
+	}
 	log.Printf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
 	mClient := mqtt.NewClient(mqOptions)
 	// We have to create the connection to the broker manually and verify that there is no error.

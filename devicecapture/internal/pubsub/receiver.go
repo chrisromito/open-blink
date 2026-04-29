@@ -3,9 +3,7 @@ package pubsub
 
 import (
 	"context"
-	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/receiver"
-	"encoding/json"
 	"fmt"
 	"image/jpeg"
 	"log"
@@ -17,13 +15,6 @@ type MqttReceiver struct {
 	client    *MqttClient
 	videoPath string
 	Session   *receiver.CaptureSession
-	Detector  detection.ObjectDetector
-}
-
-type FrameMsg struct {
-	DeviceId  string `json:"device_id"`
-	FileName  string `json:"file_name"`
-	Timestamp int64  `json:"timestamp"`
 }
 
 func NewMqttReceiver(client *MqttClient, videoPath string) *MqttReceiver {
@@ -70,6 +61,7 @@ func (r *MqttReceiver) EndSession() error {
 	return nil
 }
 
+// ReceiveFrame publishes Frames (JSON) to "image/<deviceID>"
 func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) error {
 	log.Printf("mqttreceiver.ReceiveFrame")
 	var fp = framePath
@@ -144,21 +136,9 @@ func (r *MqttReceiver) ReceiveFrameStream(ctx context.Context, imgChan <-chan re
 
 func (r *MqttReceiver) FrameToJson(frame receiver.Frame) (string, error) {
 	fp := receiver.FramePath(r.videoPath, r.Session, frame)
-	payload, err := FrameJson(r.Session.DeviceID, fp, frame)
+	payload, err := receiver.FrameJson(r.Session.DeviceID, fp, frame)
 	if err != nil {
 		return "", err
 	}
 	return payload, nil
-}
-
-func FrameJson(deviceId string, filePath string, fr receiver.Frame) (string, error) {
-	var msg = FrameMsg{
-		DeviceId:  deviceId,
-		FileName:  filePath,
-		Timestamp: fr.Timestamp}
-	value, err := json.Marshal(msg)
-	if err != nil {
-		return "", err
-	}
-	return string(value), nil
 }
