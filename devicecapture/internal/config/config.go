@@ -8,6 +8,8 @@ import (
 
 type Config struct {
 	MqttHost            string
+	MqttUser            string
+	MqttPassword        string
 	DbUrl               string
 	VideoPath           string
 	DetectionServiceUrl string
@@ -20,6 +22,9 @@ func NewConfig() *Config {
 	} else {
 		mh = strings.ReplaceAll(mh, "'", "")
 	}
+	mu := os.Getenv("MQTT_USER")
+	mp := os.Getenv("MQTT_PASSWORD")
+
 	db := os.Getenv("DB_URL")
 	if db == "" {
 		db = "postgres://postgres:postgres@localhost:5432/openblink"
@@ -32,6 +37,8 @@ func NewConfig() *Config {
 	log.Printf("DETECTION_SERVICE_URL: %s", detectionService)
 	return &Config{
 		MqttHost:            mh,
+		MqttUser:            mu,
+		MqttPassword:        mp,
 		DbUrl:               db,
 		VideoPath:           "/videos",
 		DetectionServiceUrl: detectionService,

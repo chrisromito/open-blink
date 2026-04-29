@@ -21,7 +21,7 @@ import (
 )
 
 func TestApi_Ping_Success(t *testing.T) {
-	server := newTestServer()
+	server := newTestServer(t.Context())
 	defer server.Close()
 
 	api := NewApi("test-domain", server.URL)
@@ -41,7 +41,7 @@ func TestApi_Ping_Failure_NetworkError(t *testing.T) {
 }
 
 func TestApi_StreamFrames_Success(t *testing.T) {
-	server := newTestServer()
+	server := newTestServer(t.Context())
 	defer server.Close()
 
 	api := NewApi("test-domain", server.URL)
@@ -83,7 +83,7 @@ func TestApi_StreamFrames_NetworkError(t *testing.T) {
 
 func TestApi_StreamFrames_ContextCancellation(t *testing.T) {
 	// Create a server that streams indefinitely
-	server := newTestServer()
+	server := newTestServer(t.Context())
 	defer server.Close()
 
 	api := NewApi("test-domain", server.URL)
@@ -114,7 +114,7 @@ func TestApi_StreamFrames_ContextCancellation(t *testing.T) {
 func TestApi_StreamFrames_ChannelFull(t *testing.T) {
 	// This test is harder to verify precisely due to the non-blocking nature,
 	// but we can at least ensure it doesn't hang
-	server := newTestServer()
+	server := newTestServer(t.Context())
 	defer server.Close()
 
 	api := NewApi("test-domain", server.URL)
@@ -131,13 +131,26 @@ func TestApi_StreamFrames_ChannelFull(t *testing.T) {
 	}
 }
 
-func newTestServer() *httptest.Server {
+func newTestServer(ctx context.Context) *httptest.Server {
+
+	testProxy := func(stream *mjpeg.Stream) {
+		for {
+			time.Sleep(200 * time.Millisecond)
+			if ctx.Err() != nil {
+				return
+			}
+			err := stream.Update(getTestImage())
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/ping" || r.URL.Path == "" || r.URL.Path == "/" {
 			w.WriteHeader(http.StatusOK)
 		}
 		if r.URL.Path == "/stream" {
-
 			stream := mjpeg.NewStreamWithInterval(200 * time.Millisecond)
 			defer func(stream *mjpeg.Stream) {
 				_ = stream.Close()
@@ -146,9 +159,9 @@ func newTestServer() *httptest.Server {
 			if streamErr != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
+				go testProxy(stream)
 				stream.ServeHTTP(w, r)
 			}
-
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}

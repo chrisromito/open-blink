@@ -4,7 +4,6 @@ import (
 	"context"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
-	"strconv"
 )
 
 // PgDetectionRepo implements devices.DetectionRepo
@@ -24,12 +23,30 @@ func (d *PgDetectionRepo) CreateDetection(ctx context.Context, params devices.Cr
 		DeviceID:   params.DeviceID,
 		Label:      params.Label,
 		Confidence: params.Confidence,
+		ImageID:    params.ImageID,
 	}
 	detect, err := d.queries.CreateDetection(ctx, dbParams)
 	if err != nil {
 		return nil, err
 	}
 	return d.dbToDomain(detect), nil
+}
+
+func (d *PgDetectionRepo) CreateDetections(ctx context.Context, params []devices.CreateDetectionParams) ([]*devices.Detection, error) {
+	var value []*devices.Detection
+	for _, p := range params {
+		record, err := d.queries.CreateDetection(ctx, db.CreateDetectionParams{
+			DeviceID:   p.DeviceID,
+			Label:      p.Label,
+			Confidence: p.Confidence,
+			ImageID:    p.ImageID,
+		})
+		if err != nil {
+			return value, err
+		}
+		value = append(value, d.dbToDomain(record))
+	}
+	return value, nil
 }
 
 // GetDetectionsAfter get all domain detections after the specified point in time
@@ -63,12 +80,8 @@ func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params d
 }
 
 // DeleteDetections deletes detection records for a given deviceId
-func (d *PgDetectionRepo) DeleteDetections(ctx context.Context, deviceId string) error {
-	id, err := strconv.ParseInt(deviceId, 10, 64)
-	if err != nil {
-		return err
-	}
-	err = d.queries.DeleteDetections(ctx, id)
+func (d *PgDetectionRepo) DeleteDetections(ctx context.Context, deviceId int64) error {
+	err := d.queries.DeleteDetections(ctx, deviceId)
 	return err
 }
 
@@ -86,12 +99,8 @@ func (d *PgDetectionRepo) dbToDomain(value db.Detection) *devices.Detection {
 
 // toDbQueryParams convert devices.QueryParams -> db.GetDeviceDetectionsAfterParams
 func (d *PgDetectionRepo) toDbQueryParams(params devices.QueryParams) (*db.GetDeviceDetectionsAfterParams, error) {
-	id, err := strconv.ParseInt(params.DeviceID, 10, 64)
-	if err != nil {
-		return nil, err
-	}
 	return &db.GetDeviceDetectionsAfterParams{
-		DeviceID:  id,
+		DeviceID:  params.DeviceID,
 		CreatedAt: params.CreatedAt,
 	}, nil
 }

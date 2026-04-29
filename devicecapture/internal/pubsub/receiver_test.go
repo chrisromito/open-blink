@@ -152,7 +152,7 @@ func TestFrameJson(t *testing.T) {
 	fileName := "/path/to/test.jpg"
 	frame := createTestFrame(1234567890)
 
-	jsonStr, err := FrameJson(deviceId, fileName, frame)
+	jsonStr, err := receiver.FrameJson(deviceId, fileName, frame)
 	if err != nil {
 		t.Fatalf("FrameJson failed: %v", err)
 	}
@@ -253,7 +253,7 @@ func BenchmarkFrameJson(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := FrameJson(deviceId, fileName, frame)
+		_, err := receiver.FrameJson(deviceId, fileName, frame)
 		if err != nil {
 			b.Fatal(err)
 		}

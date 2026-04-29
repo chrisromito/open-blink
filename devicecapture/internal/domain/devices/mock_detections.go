@@ -2,8 +2,6 @@ package devices
 
 import (
 	"context"
-	"errors"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -37,14 +35,9 @@ func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params Que
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	deviceID, err := strconv.ParseInt(params.DeviceID, 10, 64)
-	if err != nil {
-		return nil, errors.New("invalid device ID")
-	}
-
 	var result []*Detection
 	for _, detection := range d.ds {
-		if detection.DeviceID == deviceID && detection.CreatedAt.After(params.CreatedAt) {
+		if detection.DeviceID == params.DeviceID && detection.CreatedAt.After(params.CreatedAt) {
 			result = append(result, detection)
 		}
 	}
@@ -55,7 +48,6 @@ func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params Que
 func (d *MockDetection) CreateDetection(ctx context.Context, params CreateDetectionParams) (*Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
 	detection := &Detection{
 		ID:         int64(len(d.ds) + 1),
 		DeviceID:   params.DeviceID,
@@ -68,18 +60,27 @@ func (d *MockDetection) CreateDetection(ctx context.Context, params CreateDetect
 	return detection, nil
 }
 
-func (d *MockDetection) DeleteDetections(ctx context.Context, deviceId string) error {
+func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDetectionParams) ([]*Detection, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var value []*Detection
+	for _, param := range params {
+		record, err := d.CreateDetection(ctx, param)
+		if err != nil {
+			return value, err
+		}
+		value = append(value, record)
+	}
+	return value, nil
+}
+
+func (d *MockDetection) DeleteDetections(ctx context.Context, deviceId int64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	deviceID, err := strconv.ParseInt(deviceId, 10, 64)
-	if err != nil {
-		return errors.New("invalid device ID")
-	}
-
 	var filteredDetections []*Detection
 	for _, detection := range d.ds {
-		if detection.DeviceID != deviceID {
+		if detection.DeviceID != deviceId {
 			filteredDetections = append(filteredDetections, detection)
 		}
 	}
