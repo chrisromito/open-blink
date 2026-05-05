@@ -50,7 +50,7 @@ func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection
 func (s *CameraService) IsValidId(deviceId string) bool {
 	id, err := strconv.ParseInt(deviceId, 10, 64)
 	d, err2 := s.DeviceRepo.GetDevice(context.Background(), id)
-	return err == nil && err2 == nil && d != nil
+	return err == nil && err2 == nil && d.ID != 0
 }
 
 func (s *CameraService) IsStreaming(deviceId string) bool {
@@ -125,6 +125,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 		defer wg.Done()
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-done:
 				return
 			case img, ok := <-imgChan:
@@ -132,6 +134,7 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 					log.Print("CamService -> imgChan not ok, returning")
 					return
 				}
+				session.SetLastFrame(&img)
 				outChan <- img
 			}
 		}
@@ -143,6 +146,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 		defer wg.Done()
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-done:
 				return
 			case img, ok := <-outChan:
@@ -258,10 +263,15 @@ func (s *CameraService) removeId(deviceId string) {
 }
 
 func detectionServiceToPg(deviceId int64, imageID *int64, d detection.Detection) devices.CreateDetectionParams {
+	Bbox := [][]float64{
+		{d.Bbox.X1, d.Bbox.Y1},
+		{d.Bbox.X2, d.Bbox.Y2},
+	}
 	return devices.CreateDetectionParams{
 		DeviceID:   deviceId,
 		Label:      d.Label,
 		Confidence: d.Confidence,
 		ImageID:    imageID,
+		Bbox:       Bbox,
 	}
 }

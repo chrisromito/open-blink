@@ -50,10 +50,6 @@ func (a *AppDb) GetQueries() *db.Queries {
 	return db.New(a.Db)
 }
 
-func GetQueries(appDb AppDb) *db.Queries {
-	return db.New(appDb.Db)
-}
-
 const testDatabaseURL = "postgres://postgres:postgres@postgres:5432/test_openblink"
 
 func NewTestAppDb() (*AppDb, error) {
@@ -63,8 +59,4 @@ func NewTestAppDb() (*AppDb, error) {
 		return nil, err
 	}
 	return appDb, nil
-}
-
-func CleanupTestData(ctx context.Context, q *db.Queries) error {
-	return q.DeleteTestDevices(ctx)
 }

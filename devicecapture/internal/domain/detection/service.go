@@ -14,8 +14,6 @@ import (
 // ObjectDetectionService implements ObjectDetector
 type ObjectDetectionService struct {
 	url string
-	//Config *config.Config
-	//Deps   *domain.Deps
 }
 
 func NewObjectDetectionService(c *config.Config) ObjectDetectionService {
@@ -33,10 +31,11 @@ func (o ObjectDetectionService) DetectObjectsForImage(_ context.Context, req Req
 			value <- response
 		}
 	}()
+	// This service must return in < 2 seconds
 	select {
 	case resp := <-value:
 		return resp, nil
-	case <-time.After(1 * time.Second):
+	case <-time.After(2 * time.Second):
 		return []Detection{}, nil
 	}
 }

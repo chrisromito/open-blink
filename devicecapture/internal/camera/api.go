@@ -46,7 +46,10 @@ func NewApi(deviceId string, deviceUrl string) Api {
 
 func (a *Api) Ping() bool {
 	pingUrl := a.Url + "/ping"
-	resp, err := http.Get(pingUrl)
+	client := &http.Client{
+		Timeout: 1 * time.Second,
+	}
+	resp, err := client.Get(pingUrl)
 	if err != nil {
 		return false
 	}
@@ -106,6 +109,10 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 }
 
 func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) error {
+	// Ping the API before we start streaming
+	if !a.Ping() {
+		return errors.New(fmt.Sprintf("could not stream from URL %s", a.Url))
+	}
 	var wg sync.WaitGroup
 	stream := mjpeg.NewStream()
 	defer func(stream *mjpeg.Stream) {

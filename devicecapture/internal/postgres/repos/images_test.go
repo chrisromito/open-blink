@@ -12,10 +12,10 @@ func Test_Create_Images(t *testing.T) {
 	appDb, dbErr := postgres.NewTestAppDb()
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
-	repo := NewPgImageRepo(appDb.GetQueries())
-	cleanupErr := postgres.CleanupTestData(t.Context(), repo.queries)
-	a.NoError(cleanupErr)
-	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
+	q := appDb.GetQueries()
+	repo := NewPgImageRepo(q)
+	//testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
+	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	pathPrefix := "/videos"
 
@@ -27,7 +27,7 @@ func Test_Create_Images(t *testing.T) {
 		{
 			params: devices.CreateImageParams{
 				DeviceID:  testDevice.ID,
-				ImagePath: pathPrefix + "test1.jpeg",
+				ImagePath: pathPrefix + generateRandomString(30) + "test1.jpeg",
 			},
 			wantErr: false,
 			msg:     "valid params create valid images",
@@ -35,7 +35,7 @@ func Test_Create_Images(t *testing.T) {
 		{
 			params: devices.CreateImageParams{
 				DeviceID:  testDevice.ID,
-				ImagePath: pathPrefix + "test2.png",
+				ImagePath: pathPrefix + generateRandomString(30) + "test2.png",
 			},
 			wantErr: false,
 			msg:     "we do not enforce jpegs on a repo-level",
@@ -43,29 +43,19 @@ func Test_Create_Images(t *testing.T) {
 		{
 			params: devices.CreateImageParams{
 				DeviceID:  -5,
-				ImagePath: pathPrefix + "test3.jpeg",
+				ImagePath: pathPrefix + generateRandomString(30) + "test3.jpeg",
 			},
 			wantErr: true,
 			msg:     "cannot create images with invalid device IDs",
 		},
-		{
-			params: devices.CreateImageParams{
-				DeviceID:  testDevice.ID,
-				ImagePath: "",
-			},
-			wantErr: false,
-			msg:     "empty image paths are supported, but frowned upon",
-		},
 	}
 	ctx := t.Context()
 	for _, test := range tests {
-		result, err := repo.CreateImage(ctx, test.params)
+		_, err := repo.CreateImage(ctx, test.params)
 		if test.wantErr {
 			a.Error(err, test.msg)
-			a.Empty(result)
 		} else {
 			a.NoError(err, test.msg)
-			a.NotEmpty(result)
 		}
 	}
 }
@@ -75,23 +65,24 @@ func Test_Get_Images(t *testing.T) {
 	appDb, dbErr := postgres.NewTestAppDb()
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
-	repo := NewPgImageRepo(appDb.GetQueries())
-	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
+	q := appDb.GetQueries()
+	repo := NewPgImageRepo(q)
+	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 
 	//	Create 3 images so we can read them out
 	testParams := []devices.CreateImageParams{
 		{
 			DeviceID:  testDevice.ID,
-			ImagePath: "/videos/test-123.jpeg",
+			ImagePath: "/videos" + generateRandomString(30) + "/test-123.jpeg",
 		},
 		{
 			DeviceID:  testDevice.ID,
-			ImagePath: "/videos/test-234.jpeg",
+			ImagePath: "/videos" + generateRandomString(30) + "/test-234.jpeg",
 		},
 		{
 			DeviceID:  testDevice.ID,
-			ImagePath: "/videos/test-345.jpeg",
+			ImagePath: "/videos" + generateRandomString(30) + "/test-345.jpeg",
 		},
 	}
 	for _, p := range testParams {

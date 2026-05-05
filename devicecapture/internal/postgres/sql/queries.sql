@@ -14,10 +14,17 @@ INSERT INTO devices (id, name, device_url)
 VALUES (DEFAULT, 'mockdevice', 'http://mock_device:8080')
 RETURNING *;
 
+-- name: GetTestDevice :one
+SELECT *
+FROM devices
+WHERE name ILIKE '%mockdevice%'
+LIMIT 1;
+
 -- name: DeleteTestDevices :exec
 DELETE
 FROM devices
-WHERE name ILIKE '%mockdevice%';
+WHERE (name ILIKE '%mockdevice%')
+   OR (name ILIKE '%test%');
 
 
 -- name: DeleteDevice :exec
@@ -76,13 +83,13 @@ WHERE device_id = $1;
 -- Detections
 -----------------
 -- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence, image_id)
-VALUES (DEFAULT, $1, $2, $3, $4)
+INSERT INTO detections (id, device_id, label, confidence, image_id, bbox)
+VALUES (DEFAULT, $1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: CreateDetections :copyfrom
-INSERT INTO detections (device_id, label, confidence, image_id)
-VALUES ($1, $2, $3, $4);
+INSERT INTO detections (device_id, label, confidence, image_id, bbox)
+VALUES ($1, $2, $3, $4, $5);
 
 -- name: GetDetectionsAfter :many
 SELECT *
@@ -95,7 +102,7 @@ SELECT *
 FROM detections
 WHERE device_id = @device_id
   AND created_at >= @created_at
-    AND image_id = COALESCE(@image_id, image_id)
+  AND image_id = COALESCE(@image_id, image_id)
 ORDER BY created_at DESC;
 
 

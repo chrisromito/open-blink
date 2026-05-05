@@ -7,7 +7,7 @@ services:
     networks:
       - openblink
     volumes:
-      - ./devicecapture/static/videos:/videos
+      - ./devicecapture/static/videos:/static/videos
     depends_on:
       - postgres
     env_file: .env
@@ -22,7 +22,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./devicecapture/static/videos:/videos
+      - ./devicecapture/static/videos:/static/videos
       - ./devicecapture/static:/usr/src/app/static
     depends_on:
       - postgres
