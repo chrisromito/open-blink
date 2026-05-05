@@ -8,7 +8,6 @@ import (
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/receiver"
 	"devicecapture/internal/pubsub"
-	"encoding/json"
 	"errors"
 	"log"
 	"slices"
@@ -215,8 +214,10 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 				return
 			}
 			// Loop through, publish each detection
+			thisIp := s.Config.ThisIp
 			for _, d := range toPublish {
-				payload, jsonErr := json.Marshal(d)
+				payload, jsonErr := receiver.DetectionToMsg(thisIp, framePath, d)
+				//payload, jsonErr := json.Marshal(d)
 				if jsonErr != nil {
 					log.Printf("error marshalling %v to JSON: %v", d, jsonErr)
 					return
