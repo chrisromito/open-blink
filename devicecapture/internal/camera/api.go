@@ -54,7 +54,7 @@ func (a *Api) Ping() bool {
 		return false
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
 func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stream) error {

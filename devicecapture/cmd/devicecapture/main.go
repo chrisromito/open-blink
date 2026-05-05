@@ -12,6 +12,7 @@ import (
 	"devicecapture/internal/pubsub"
 	"encoding/json"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 	"log"
 	"os"
 	"os/signal"
@@ -22,7 +23,7 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-server-2", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper("go-server-"+uuid.New().String(), conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -54,18 +55,28 @@ func main() {
 	defer cancel()
 
 	a := app.NewApp(conf, &client, db, deps)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	done := make(chan error, 1)
+
+	go func() {
+		<-sigChan
+		done <- nil
+		cancel()
+	}()
 
 	// MQTT goroutine
 	go func() {
 		if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
+			done <- err
 			log.Printf("Error in MQTT subscription: %v", err)
 			cancel() // Cancel context to trigger shutdown
 		}
 		log.Fatalf("devicecapture exiting because the start stream topic exited")
 	}()
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
+
+	v := <-done
+	log.Printf("devicecapture exiting with value %v", v)
 }
 
 func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
