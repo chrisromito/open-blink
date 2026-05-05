@@ -82,35 +82,36 @@ func main() {
 func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
 	//topics := []string{"start-stream", "motion-detected"}
 
-	inChan := make(chan mqtt.Message, 3)
+	//inChan := make(chan mqtt.Message, 3)
 	queueChan := make(chan mqtt.Message, 3)
+	defer close(queueChan)
 	done := make(chan error)
-
+	defer close(done)
 	// Track subscriptions for cleanup
 	var subscriptionWg sync.WaitGroup
 
 	// pull from inChan & push to queueChan
-	subscriptionWg.Add(1)
-	go func() {
-		defer subscriptionWg.Done()
-		for {
-			select {
-			case msg, ok := <-inChan:
-				if !ok {
-					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because inChan !ok")
-					done <- nil
-					return
-				}
-				log.Printf("pushing message to queueChan")
-				queueChan <- msg
-			case <-ctx.Done():
-				done <- nil
-				return
-			case <-done:
-				return
-			}
-		}
-	}()
+	//subscriptionWg.Add(1)
+	//go func() {
+	//	defer subscriptionWg.Done()
+	//	for {
+	//		select {
+	//		case msg, ok := <-inChan:
+	//			if !ok {
+	//				log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because inChan !ok")
+	//				done <- nil
+	//				return
+	//			}
+	//			log.Printf("pushing message to queueChan")
+	//			queueChan <- msg
+	//		case <-ctx.Done():
+	//			done <- nil
+	//			return
+	//		case <-done:
+	//			return
+	//		}
+	//	}
+	//}()
 
 	subscriptionWg.Add(1)
 	go func() {
@@ -121,18 +122,18 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 				// Handle start messages
 				msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				if !ok {
-					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because queueChan !ok")
+					log.Printf("devicecapture.SubscribeToStartStreamTopic.queueChan -> exiting because queueChan !ok")
 					cancel()
 					done <- nil
 					return
 				}
 
-				log.Printf("Processing message from topic: %s", m.Topic())
+				log.Printf("devicecapture.SubscribeToStartStreamTopic.queueChan - Processing message from topic: %s", m.Topic())
 
 				value := m.Payload()
 				var msg app.StartStreamMessage
 				if err := json.Unmarshal(value, &msg); err != nil {
-					log.Printf("failed to unmarshal message: %v", err)
+					log.Printf("devicecapture.SubscribeToStartStreamTopic.queueChan failed to unmarshal message: %v", err)
 					cancel()
 					done <- nil
 					return
@@ -145,10 +146,10 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 					detection.NewObjectDetectionService(a.Conf),
 					a.MqttClient,
 				)
-				log.Printf("starting stream for device %s", msg.DeviceId)
+				log.Printf("devicecapture.SubscribeToStartStreamTopic.queueChan starting stream for device %s", msg.DeviceId)
 				_, err := cameraService.StartStream(msgCtx, msg.DeviceId)
 				if err != nil {
-					log.Printf("failed to start stream for device %s: %v", msg.DeviceId, err)
+					log.Printf("devicecapture.SubscribeToStartStreamTopic.queueChan failed to start stream for device %s: %v", msg.DeviceId, err)
 					cancel()
 					done <- nil
 					return
@@ -156,9 +157,11 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 				cancel()
 			//	Don't trigger the done chan because we want this loop to continue...
 			case <-ctx.Done():
+				log.Print("devicecapture.SubscribeToStartStreamTopic.queueChan -> Returning because context done")
 				done <- nil
 				return
 			case <-done:
+				log.Print("devicecapture.SubscribeToStartStreamTopic.queueChan -> Returning because done channel")
 				return
 			}
 		}
@@ -168,7 +171,7 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 		subscriptionWg.Add(1)
 		defer subscriptionWg.Done()
 		log.Printf("received message on topic %v", m.Topic())
-		inChan <- m
+		queueChan <- m
 	}
 
 	if err := client.Subscribe("start-stream", receiveMessage); err != nil {
