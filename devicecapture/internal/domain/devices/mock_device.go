@@ -31,16 +31,16 @@ func GetTestFailDevice() Device {
 }
 
 type MockRepo struct {
-	ds []*Device
+	ds []Device
 	mu sync.Mutex
 }
 
 func NewMockRepo() *MockRepo {
 	d := GetMockDevice()
 	df := GetTestFailDevice()
-	return &MockRepo{ds: []*Device{
-		&df,
-		&d,
+	return &MockRepo{ds: []Device{
+		df,
+		d,
 	}}
 }
 
@@ -56,11 +56,11 @@ func isLetter(s string) bool {
 }
 
 // CreateDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) CreateDevice(_ context.Context, params CreateDeviceParams) (*Device, error) {
+func (mr *MockRepo) CreateDevice(_ context.Context, params CreateDeviceParams) (Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	dev := GetMockDevice()
-	d := &dev
+	d := dev
 	d.ID = int64(len(mr.ds) + 1)
 	d.Name = params.Name
 	d.DeviceUrl = params.DeviceUrl
@@ -69,7 +69,7 @@ func (mr *MockRepo) CreateDevice(_ context.Context, params CreateDeviceParams) (
 }
 
 // GetDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) GetDevice(_ context.Context, deviceId int64) (*Device, error) {
+func (mr *MockRepo) GetDevice(_ context.Context, deviceId int64) (Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
@@ -77,14 +77,14 @@ func (mr *MockRepo) GetDevice(_ context.Context, deviceId int64) (*Device, error
 			return d, nil
 		}
 	}
-	return nil, errors.New("notfound")
+	return Device{}, errors.New("notfound")
 }
 
 // ListDevices MockRepo implements DeviceRepository
-func (mr *MockRepo) ListDevices(_ context.Context) ([]*Device, error) {
+func (mr *MockRepo) ListDevices(_ context.Context) ([]Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
-	dSlice := make([]*Device, len(mr.ds))
+	dSlice := make([]Device, len(mr.ds))
 	for _, d := range mr.ds {
 		dSlice = append(dSlice, d)
 	}
@@ -92,7 +92,7 @@ func (mr *MockRepo) ListDevices(_ context.Context) ([]*Device, error) {
 }
 
 // UpdateDevice MockRepo implements DeviceRepository
-func (mr *MockRepo) UpdateDevice(_ context.Context, params UpdateDeviceParams) (*Device, error) {
+func (mr *MockRepo) UpdateDevice(_ context.Context, params UpdateDeviceParams) (Device, error) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 	for _, d := range mr.ds {
@@ -102,7 +102,7 @@ func (mr *MockRepo) UpdateDevice(_ context.Context, params UpdateDeviceParams) (
 			return d, nil
 		}
 	}
-	return nil, errors.New("notfound")
+	return Device{}, errors.New("notfound")
 }
 
 func (mr *MockRepo) DeleteDevice(_ context.Context, id int64) error {

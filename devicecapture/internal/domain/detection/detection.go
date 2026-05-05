@@ -13,7 +13,7 @@ type Req struct {
 type Detection struct {
 	Confidence float64 `json:"confidence"`
 	Label      string  `json:"label"`
-	BBox       BBox    `json:"bbox"`
+	Bbox       BBox    `json:"bbox"`
 }
 
 type BBox struct {

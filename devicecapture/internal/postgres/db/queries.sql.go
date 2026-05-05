@@ -11,16 +11,17 @@ import (
 )
 
 const createDetection = `-- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence, image_id)
-VALUES (DEFAULT, $1, $2, $3, $4)
-RETURNING id, device_id, image_id, created_at, label, confidence
+INSERT INTO detections (id, device_id, label, confidence, image_id, bbox)
+VALUES (DEFAULT, $1, $2, $3, $4, $5)
+RETURNING id, device_id, image_id, created_at, label, confidence, bbox
 `
 
 type CreateDetectionParams struct {
-	DeviceID   int64   `db:"device_id" json:"device_id"`
-	Label      string  `db:"label" json:"label"`
-	Confidence float64 `db:"confidence" json:"confidence"`
-	ImageID    *int64  `db:"image_id" json:"image_id"`
+	DeviceID   int64       `db:"device_id" json:"device_id"`
+	Label      string      `db:"label" json:"label"`
+	Confidence float64     `db:"confidence" json:"confidence"`
+	ImageID    *int64      `db:"image_id" json:"image_id"`
+	Bbox       [][]float64 `db:"bbox" json:"bbox"`
 }
 
 // ---------------
@@ -32,6 +33,7 @@ func (q *Queries) CreateDetection(ctx context.Context, arg CreateDetectionParams
 		arg.Label,
 		arg.Confidence,
 		arg.ImageID,
+		arg.Bbox,
 	)
 	var i Detection
 	err := row.Scan(
@@ -41,15 +43,17 @@ func (q *Queries) CreateDetection(ctx context.Context, arg CreateDetectionParams
 		&i.CreatedAt,
 		&i.Label,
 		&i.Confidence,
+		&i.Bbox,
 	)
 	return i, err
 }
 
 type CreateDetectionsParams struct {
-	DeviceID   int64   `db:"device_id" json:"device_id"`
-	Label      string  `db:"label" json:"label"`
-	Confidence float64 `db:"confidence" json:"confidence"`
-	ImageID    *int64  `db:"image_id" json:"image_id"`
+	DeviceID   int64       `db:"device_id" json:"device_id"`
+	Label      string      `db:"label" json:"label"`
+	Confidence float64     `db:"confidence" json:"confidence"`
+	ImageID    *int64      `db:"image_id" json:"image_id"`
+	Bbox       [][]float64 `db:"bbox" json:"bbox"`
 }
 
 const createDevice = `-- name: CreateDevice :one
@@ -144,7 +148,8 @@ func (q *Queries) DeleteDevice(ctx context.Context, id int64) error {
 const deleteTestDevices = `-- name: DeleteTestDevices :exec
 DELETE
 FROM devices
-WHERE name ILIKE '%mockdevice%'
+WHERE (name ILIKE '%mockdevice%')
+   OR (name ILIKE '%test%')
 `
 
 func (q *Queries) DeleteTestDevices(ctx context.Context) error {
@@ -153,7 +158,7 @@ func (q *Queries) DeleteTestDevices(ctx context.Context) error {
 }
 
 const getDetectionsAfter = `-- name: GetDetectionsAfter :many
-SELECT id, device_id, image_id, created_at, label, confidence
+SELECT id, device_id, image_id, created_at, label, confidence, bbox
 FROM detections
 WHERE created_at >= $1
 ORDER BY created_at DESC
@@ -175,6 +180,7 @@ func (q *Queries) GetDetectionsAfter(ctx context.Context, createdAt time.Time) (
 			&i.CreatedAt,
 			&i.Label,
 			&i.Confidence,
+			&i.Bbox,
 		); err != nil {
 			return nil, err
 		}
@@ -201,11 +207,11 @@ func (q *Queries) GetDeviceById(ctx context.Context, id int64) (Device, error) {
 }
 
 const getDeviceDetectionsAfter = `-- name: GetDeviceDetectionsAfter :many
-SELECT id, device_id, image_id, created_at, label, confidence
+SELECT id, device_id, image_id, created_at, label, confidence, bbox
 FROM detections
 WHERE device_id = $1
   AND created_at >= $2
-    AND image_id = COALESCE($3, image_id)
+  AND image_id = COALESCE($3, image_id)
 ORDER BY created_at DESC
 `
 
@@ -231,6 +237,7 @@ func (q *Queries) GetDeviceDetectionsAfter(ctx context.Context, arg GetDeviceDet
 			&i.CreatedAt,
 			&i.Label,
 			&i.Confidence,
+			&i.Bbox,
 		); err != nil {
 			return nil, err
 		}
@@ -334,6 +341,20 @@ func (q *Queries) GetDevices(ctx context.Context) ([]Device, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTestDevice = `-- name: GetTestDevice :one
+SELECT id, name, device_url
+FROM devices
+WHERE name ILIKE '%mockdevice%'
+LIMIT 1
+`
+
+func (q *Queries) GetTestDevice(ctx context.Context) (Device, error) {
+	row := q.db.QueryRow(ctx, getTestDevice)
+	var i Device
+	err := row.Scan(&i.ID, &i.Name, &i.DeviceUrl)
+	return i, err
 }
 
 const heartBeatsAfter = `-- name: HeartBeatsAfter :many

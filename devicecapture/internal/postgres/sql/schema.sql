@@ -3,7 +3,8 @@ CREATE TABLE devices
 (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name       varchar(250) NOT NULL,
-    device_url varchar(250) NOT NULL
+    device_url varchar(250) NOT NULL,
+    UNIQUE (name)
 );
 
 -- Heartbeats
@@ -53,7 +54,8 @@ CREATE TABLE detections
             ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT NOW() NOT NULL,
     label      varchar(250) NOT NULL,
-    confidence float        NOT NULL    DEFAULT 0.0
+    confidence float        NOT NULL    DEFAULT 0.0,
+    bbox       float[][2]
 );
 
 CREATE INDEX detections__created_at__index

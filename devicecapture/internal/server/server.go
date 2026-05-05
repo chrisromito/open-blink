@@ -49,7 +49,7 @@ func DeviceListHandler(a *app.App) http.HandlerFunc {
 		}
 		var deviceList []devices.Device
 		for _, d := range ds {
-			deviceList = append(deviceList, *d)
+			deviceList = append(deviceList, d)
 		}
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
 			log.Printf("DeviceListHandler -> internal server error")

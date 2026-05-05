@@ -22,7 +22,7 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper("go-server-2", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		log.Fatalf("Error creating MQTT client: %v", cerr)
 	}
@@ -61,6 +61,7 @@ func main() {
 			log.Printf("Error in MQTT subscription: %v", err)
 			cancel() // Cancel context to trigger shutdown
 		}
+		log.Fatalf("devicecapture exiting because the start stream topic exited")
 	}()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -72,6 +73,8 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 
 	inChan := make(chan mqtt.Message, 3)
 	queueChan := make(chan mqtt.Message, 3)
+	done := make(chan error)
+
 	// Track subscriptions for cleanup
 	var subscriptionWg sync.WaitGroup
 
@@ -84,11 +87,15 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 			case msg, ok := <-inChan:
 				if !ok {
 					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because inChan !ok")
+					done <- nil
 					return
 				}
 				log.Printf("pushing message to queueChan")
 				queueChan <- msg
 			case <-ctx.Done():
+				done <- nil
+				return
+			case <-done:
 				return
 			}
 		}
@@ -105,6 +112,7 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 				if !ok {
 					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because queueChan !ok")
 					cancel()
+					done <- nil
 					return
 				}
 
@@ -115,6 +123,7 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 				if err := json.Unmarshal(value, &msg); err != nil {
 					log.Printf("failed to unmarshal message: %v", err)
 					cancel()
+					done <- nil
 					return
 				}
 
@@ -130,10 +139,15 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 				if err != nil {
 					log.Printf("failed to start stream for device %s: %v", msg.DeviceId, err)
 					cancel()
+					done <- nil
 					return
 				}
 				cancel()
+			//	Don't trigger the done chan because we want this loop to continue...
 			case <-ctx.Done():
+				done <- nil
+				return
+			case <-done:
 				return
 			}
 		}
@@ -157,5 +171,5 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 
 	log.Println("deviceCapture -> waiting for subscription cleanup...")
 	subscriptionWg.Wait()
-	return nil
+	return <-done
 }

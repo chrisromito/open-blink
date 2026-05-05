@@ -9,12 +9,13 @@ import (
 )
 
 type Detection struct {
-	ID         int64     `db:"id" json:"id"`
-	DeviceID   int64     `db:"device_id" json:"device_id"`
-	ImageID    *int64    `db:"image_id" json:"image_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	Label      string    `db:"label" json:"label"`
-	Confidence float64   `db:"confidence" json:"confidence"`
+	ID         int64       `db:"id" json:"id"`
+	DeviceID   int64       `db:"device_id" json:"device_id"`
+	ImageID    *int64      `db:"image_id" json:"image_id"`
+	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
+	Label      string      `db:"label" json:"label"`
+	Confidence float64     `db:"confidence" json:"confidence"`
+	Bbox       [][]float64 `db:"bbox" json:"bbox"`
 }
 
 type Device struct {

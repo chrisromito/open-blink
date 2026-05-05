@@ -44,7 +44,7 @@ func NewConfig() *Config {
 		MqttUser:            mu,
 		MqttPassword:        mp,
 		DbUrl:               db,
-		VideoPath:           "/videos",
+		VideoPath:           "/static/videos",
 		DetectionServiceUrl: detectionService,
 		ThisIp:              ip,
 	}
