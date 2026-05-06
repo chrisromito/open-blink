@@ -12,13 +12,13 @@ import (
 	"devicecapture/internal/app"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
 	"devicecapture/internal/server"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,19 +30,19 @@ func main() {
 	conf := config.NewConfig()
 	client, cerr := pubsub.BrokerHelper("go-deviceserver", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
-		log.Fatalf("Error creating MQTT client: %v", cerr)
+		logger.Fatal().Msgf("Error creating MQTT client: %v", cerr)
 	}
 	defer func(client *pubsub.MqttClient) {
 		_ = client.Close()
 	}(&client)
 	if !client.Valid() {
-		log.Fatalf("Failed to connect to a client")
+		logger.Fatal().Msgf("Failed to connect to a client")
 	}
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
 	defer db.Db.Close()
 	if dberr != nil {
-		log.Fatalf("Error connecting to database: %v", dberr)
+		logger.Fatal().Msgf("Error connecting to database: %v", dberr)
 	}
 
 	//-- Repos
@@ -78,14 +78,14 @@ func main() {
 	go func() {
 		err := appServer.ListenAndServe()
 		if errors.Is(err, http.ErrServerClosed) {
-			fmt.Print("server closed")
+			logger.Debug().Msgf("server closed")
 		} else if err != nil {
 			fmt.Printf("error listening for server")
 		}
 		// simulate time to close connections
 		time.Sleep(1 * time.Millisecond)
 
-		log.Println("Stopped serving new connections.")
+		logger.Error().Msgf("Stopped serving new connections.")
 		shutdownChan <- true
 	}()
 
@@ -98,9 +98,9 @@ func main() {
 
 	if err := appServer.Shutdown(ctx); err != nil {
 		_ = appServer.Close()
-		log.Fatalf("HTTP shutdown error: %v", err)
+		logger.Fatal().Err(err).Msgf("HTTP shutdown error: %v", err)
 	}
 
 	<-shutdownChan
-	log.Println("Graceful shutdown complete.")
+	logger.Info().Msgf("Graceful shutdown complete.")
 }

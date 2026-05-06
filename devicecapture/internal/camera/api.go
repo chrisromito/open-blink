@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 	"errors"
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -23,7 +23,7 @@ type Api struct {
 func NewFrame(b []byte) receiver.Frame {
 	img, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
-		log.Printf("Error decoding image: %v", err)
+		logger.Error().Msgf("Error decoding image: %v", err)
 		return receiver.Frame{
 			Buf:       []byte{},
 			Image:     nil,
@@ -63,7 +63,7 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 		Timeout: 60 * time.Second,
 	}
 	streamUrl := a.Url + "/stream"
-	log.Printf("camera.api -> stream -> Starting stream from %s", streamUrl)
+	logger.Debug().Msgf("camera.api -> stream -> Starting stream from %s", streamUrl)
 	req, err := http.NewRequestWithContext(ctx, "GET", streamUrl, nil)
 	if err != nil {
 		return err
@@ -75,14 +75,14 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("camera.api -> stream -> Error streaming: %v", err)
+		logger.Error().Msgf("camera.api -> stream -> Error streaming: %v", err)
 		return err
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("camera.api -> stream -> Not OK status: %v %d", err, resp.StatusCode)
+		logger.Error().Msgf("camera.api -> stream -> Not OK status: %v %d", err, resp.StatusCode)
 		return fmt.Errorf("received %d StatusCode", resp.StatusCode)
 	}
 	dec, err2 := mjpeg.NewDecoderFromResponse(resp)
@@ -97,12 +97,12 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 			return nil
 		}
 		if decErr != nil {
-			log.Printf("camera.api -> stream -> Error decoding: %v", err)
+			logger.Error().Msgf("camera.api.Stream() -> exiting due to decoder err: %v", err)
 			return decErr
 		}
 		streamErr := stream.Update(b)
 		if streamErr != nil {
-			log.Printf("camera.api -> stream -> error updating stream: %v", err)
+			logger.Error().Msgf("camera.api -> stream -> error updating stream: %v", err)
 			return streamErr
 		}
 	}
@@ -139,7 +139,7 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 				}
 			case s := <-stop:
 				done <- s
-				log.Printf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
+				logger.Error().Msgf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
 				return
 			}
 		}

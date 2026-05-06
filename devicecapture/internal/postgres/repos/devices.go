@@ -3,10 +3,10 @@ package repos
 import (
 	"context"
 	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
 	"errors"
 	"github.com/jackc/pgx/v5"
-	"log"
 	"strconv"
 )
 
@@ -108,9 +108,9 @@ func GetOrCreateTestDevice(ctx context.Context, q *db.Queries) (db.Device, error
 		return d, nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) || d.ID == 0 {
-		log.Printf("No test device found, creating it")
+		logger.Debug().Msgf("No test device found, creating it")
 		return q.CreateTestDevice(ctx)
 	}
-	log.Printf("GetOrCreateTestDevice ERROR %v", err)
+	logger.Error().Msgf("GetOrCreateTestDevice ERROR %v", err)
 	return db.Device{}, err
 }

@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"devicecapture/internal/logger"
 	"os"
 	"strings"
 )
@@ -33,12 +33,12 @@ func NewConfig() *Config {
 	if db == "" {
 		db = "postgres://postgres:postgres@localhost:5432/openblink"
 	}
-	log.Printf("MQTT_HOST: %s", mh)
+	logger.Debug().Msgf("MQTT_HOST: %s", mh)
 	detectionService := os.Getenv("DETECTION_SERVICE_URL")
 	if detectionService == "" {
 		detectionService = "http://0.0.0.0:8000"
 	}
-	log.Printf("DETECTION_SERVICE_URL: %s", detectionService)
+	logger.Debug().Msgf("DETECTION_SERVICE_URL: %s", detectionService)
 	return &Config{
 		MqttHost:            mh,
 		MqttUser:            mu,

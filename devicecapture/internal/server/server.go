@@ -4,11 +4,11 @@ import (
 	"devicecapture/internal/app"
 	"devicecapture/internal/camera"
 	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/pubsub"
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/mattn/go-mjpeg"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,32 +18,32 @@ import (
 
 func HomePageHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("HomePageHandler - Request: %s %s", r.Method, r.URL.Path)
+		logger.Debug().Msgf("HomePageHandler - Request: %s %s", r.Method, r.URL.Path)
 
 		filePath := "/usr/src/app/static/index.html"
 
 		// Check if file exists
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			log.Printf("File does not exist: %s", filePath)
+			logger.Debug().Msgf("File does not exist: %s", filePath)
 			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
 
-		log.Printf("Serving file: %s", filePath)
+		logger.Debug().Msgf("Serving file: %s", filePath)
 
-		log.Printf("HomePageHandler")
+		logger.Debug().Msgf("HomePageHandler")
 		http.ServeFile(w, r, filePath)
 	}
 }
 
 func DeviceListHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("DeviceListHandler -> start")
+		logger.Debug().Msgf("DeviceListHandler -> start")
 		w.Header().Set("Content-Type", "application/json")
 		ctx := r.Context()
 		ds, deviceErr := a.AppDeps.DeviceRepo.ListDevices(ctx)
 		if deviceErr != nil {
-			log.Printf("DeviceListHandler -> deviceErr %v", deviceErr)
+			logger.Debug().Msgf("DeviceListHandler -> deviceErr %v", deviceErr)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -52,11 +52,11 @@ func DeviceListHandler(a *app.App) http.HandlerFunc {
 			deviceList = append(deviceList, d)
 		}
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
-			log.Printf("DeviceListHandler -> internal server error")
+			logger.Error().Msgf("DeviceListHandler -> internal server error")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("DeviceListHandler -> returning")
+		logger.Debug().Msgf("DeviceListHandler -> returning")
 		return
 	}
 }
@@ -67,7 +67,7 @@ func HeartBeatListHandler(a *app.App) http.HandlerFunc {
 		ctx := r.Context()
 		latestBeats, dbErr := a.AppDeps.HeartbeatRepo.LatestBeats(ctx)
 		if dbErr != nil {
-			log.Printf("HeartBeatListHandler -> dbErr %v", dbErr)
+			logger.Error().Msgf("HeartBeatListHandler -> dbErr %v", dbErr)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -83,11 +83,11 @@ func HeartBeatListHandler(a *app.App) http.HandlerFunc {
 func StreamProxyHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		deviceId := r.PathValue("id")
-		log.Printf("GET /image-stream/%s", deviceId)
+		logger.Debug().Msgf("GET /image-stream/%s", deviceId)
 		// validate the domain ID
 		valid := a.AppDeps.DeviceRepo.IsValidId(deviceId)
 		if !valid {
-			log.Printf("invalid domain id %s", deviceId)
+			logger.Error().Msgf("invalid domain id %s", deviceId)
 			http.Error(w, "Invalid domain ID", http.StatusBadRequest)
 			return
 		}
@@ -107,11 +107,11 @@ func StreamProxyHandler(a *app.App) http.HandlerFunc {
 		}
 		message, jsonErr := json.Marshal(payload)
 		if jsonErr != nil {
-			log.Fatalf("error marhsalling message: %v", jsonErr)
+			logger.Fatal().Msgf("error marhsalling message: %v", jsonErr)
 		}
 		publishErr := qtClient.Publish("start-stream", message)
 		if publishErr != nil {
-			log.Printf("failed to publish to %s", "start-stream/"+deviceId)
+			logger.Error().Msgf("failed to publish to %s", "start-stream/"+deviceId)
 			return
 		}
 
@@ -138,7 +138,7 @@ func StreamProxyHandler(a *app.App) http.HandlerFunc {
 		go func() {
 			streamErr := api.Stream(ctx, &wg, stream)
 			if streamErr != nil {
-				log.Fatalf("server.StreamProxyHandler -> stream error %v", streamErr)
+				logger.Fatal().Msgf("server.StreamProxyHandler -> stream error %v", streamErr)
 			}
 		}()
 		stream.ServeHTTP(w, r)
