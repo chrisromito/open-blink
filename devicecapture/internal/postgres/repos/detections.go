@@ -3,8 +3,8 @@ package repos
 import (
 	"context"
 	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
-	"log"
 )
 
 // PgDetectionRepo implements devices.DetectionRepo
@@ -76,7 +76,7 @@ func (d *PgDetectionRepo) GetDeviceDetectionsAfter(ctx context.Context, params d
 		return nil, err2
 	}
 	var detections []devices.Detection
-	log.Printf("postgres.repos.detections -> GetDeviceDetectionsAfter -> #: %d", len(detections))
+	logger.Debug().Msgf("postgres.repos.detections -> GetDeviceDetectionsAfter -> #: %d", len(detections))
 	for _, detection := range value {
 		detections = append(detections, d.dbToDomain(detection))
 	}

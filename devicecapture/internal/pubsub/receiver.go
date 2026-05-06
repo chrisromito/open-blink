@@ -5,9 +5,9 @@ import (
 	"context"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 	"fmt"
 	"image/jpeg"
-	"log"
 	"os"
 )
 
@@ -62,33 +62,33 @@ func (r *MqttReceiver) EndSession() error {
 
 // ReceiveFrame publishes Frames (JSON) to "image/<deviceID>"
 func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) error {
-	log.Printf("mqttreceiver.ReceiveFrame")
+	logger.Debug().Msgf("mqttreceiver.ReceiveFrame")
 	var fp = framePath
 	if framePath == "" {
 		fp = receiver.FramePath(r.videoPath, r.Session, frame)
 	}
-	log.Printf("Writing frame to file: %v at %s", frame.Timestamp, fp)
+	logger.Debug().Msgf("Writing frame to file: %v at %s", frame.Timestamp, fp)
 	f, err := os.Create(fp)
 	defer f.Close()
 	if err != nil {
-		log.Printf("error writing frame to file %v @ %s", frame.Timestamp, fp)
+		logger.Error().Msgf("error writing frame to file %v @ %s", frame.Timestamp, fp)
 		return err
 	}
 	err2 := jpeg.Encode(f, frame.Image, nil)
 	if err2 != nil {
-		log.Printf("error encoding frame to JPEG for %s", fp)
+		logger.Error().Msgf("error encoding frame to JPEG for %s", fp)
 		return err2
 	}
 	payload, err3 := r.FrameToJson(r.serverIp, frame)
 	if err3 != nil {
-		log.Printf("error from FrameToJson for %s", fp)
+		logger.Error().Msgf("error from FrameToJson for %s", fp)
 		return err3
 	}
 	topic := fmt.Sprintf("image/%s", r.Session.DeviceID)
 	err = r.client.Publish(topic, payload)
-	log.Printf("Writing device %s frame to topic: %v ", r.Session.DeviceID, topic)
+	logger.Debug().Msgf("Writing device %s frame to topic: %v ", r.Session.DeviceID, topic)
 	if err != nil {
-		log.Fatalf("error publishing device %s frame to topic %v", r.Session.DeviceID, topic)
+		logger.Error().Msgf("error publishing device %s frame to topic %v", r.Session.DeviceID, topic)
 	}
 	return nil
 }

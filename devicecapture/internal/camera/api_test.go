@@ -3,6 +3,7 @@ package camera
 import (
 	"bytes"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 	"github.com/mattn/go-mjpeg"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -13,7 +14,6 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -172,7 +172,7 @@ func getTestImage() []byte {
 	var buf bytes.Buffer
 	err := jpeg.Encode(&buf, img, nil)
 	if err != nil {
-		log.Printf("getTestImage -> err: %v", err)
+		logger.Error().Msgf("getTestImage -> err: %v", err)
 		return nil
 	}
 	return buf.Bytes()
