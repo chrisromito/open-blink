@@ -57,11 +57,8 @@ func (a *Api) Ping() bool {
 	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
-func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stream) error {
-	defer wg.Done()
-	client := &http.Client{
-		Timeout: 60 * time.Second,
-	}
+func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
+	client := &http.Client{}
 	streamUrl := a.Url + "/stream"
 	logger.Debug().Msgf("camera.api -> stream -> Starting stream from %s", streamUrl)
 	req, err := http.NewRequestWithContext(ctx, "GET", streamUrl, nil)
@@ -91,19 +88,24 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 	}
 
 	for {
-		b, decErr := dec.DecodeRaw()
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
+		select {
+		case <-ctx.Done():
 			return nil
-		}
-		if decErr != nil {
-			logger.Error().Msgf("camera.api.Stream() -> exiting due to decoder err: %v", err)
-			return decErr
-		}
-		streamErr := stream.Update(b)
-		if streamErr != nil {
-			logger.Error().Msgf("camera.api -> stream -> error updating stream: %v", err)
-			return streamErr
+		default:
+			b, decErr := dec.DecodeRaw()
+			ctxErr := ctx.Err()
+			if ctxErr != nil {
+				return nil
+			}
+			if decErr != nil {
+				logger.Error().Msgf("camera.api.Stream() -> exiting due to decoder err: %v", err)
+				return decErr
+			}
+			streamErr := stream.Update(b)
+			if streamErr != nil {
+				logger.Error().Msgf("camera.api -> stream -> error updating stream: %v", err)
+				return streamErr
+			}
 		}
 	}
 }
@@ -113,33 +115,38 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	if !a.Ping() {
 		return errors.New(fmt.Sprintf("could not stream from URL %s", a.Url))
 	}
-	var wg sync.WaitGroup
 	stream := mjpeg.NewStream()
 	defer func(stream *mjpeg.Stream) {
 		_ = stream.Close()
 	}(stream)
 	stop := make(chan error)
-	done := make(chan error)
-	defer close(done)
+	defer close(stop)
 
+	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		for {
 			select {
 			case <-ticker.C:
 				ctxErr := ctx.Err()
 				if ctxErr != nil {
+					logger.Error().Str("service", "camera.api").
+						Msg("camera.api.StreamFrames exiting because ctxErr")
 					return
 				}
 				data := stream.Current()
 				if len(data) > 0 {
 					imgChan <- NewFrame(data)
 				}
+			case <-ctx.Done():
+				logger.Error().Str("service", "camera.api").
+					Msgf("camera.api.StreamFrames goroutine 1 exiting because ctx.Done()")
+				return
 			case s := <-stop:
-				done <- s
-				logger.Error().Msgf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
+				logger.Error().Str("service", "camera.api").
+					Msgf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
 				return
 			}
 		}
@@ -148,16 +155,34 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		wg.Add(1)
-		err := a.Stream(ctx, &wg, stream)
-		if errors.Is(err, context.DeadlineExceeded) {
-			stop <- nil
-		} else {
-			stop <- err
-		}
+		logger.Info().Str("service", "camera.api").
+			Msg("camera.api calling api.Stream()")
+		stop <- a.Stream(ctx, stream)
+		logger.Error().Str("service", "camera.api").
+			Msg("camera.api stream() goroutine finished")
 		return
 	}()
-	wg.Wait()
-	value := <-stop
-	return value
+	//value := <-stop
+	select {
+	case value := <-stop:
+		logger.Error().Str("service", "camera.api").
+			Msg("Stop chan, returning, waiting for wg")
+		wg.Wait()
+		logger.Error().Str("service", "camera.api").
+			Msg("wg.Done returning")
+		return value
+	case <-ctx.Done():
+		logger.Error().Str("service", "camera.api").
+			Msg("ctx.Done, waiting for wg")
+		wg.Wait()
+		logger.Error().Str("service", "camera.api").
+			Msg("wg.Done returning")
+		return nil
+	case <-time.After(60 * time.Second):
+		logger.Error().Str("service", "camera.api").
+			Msg("returning after 60 seconds")
+		return nil
+	}
+
+	//return value
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -82,31 +83,13 @@ func main() {
 }
 
 func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
-	// Shared camera service instance prevents duplicate camera feeds
-	cameraService := camera.NewCameraService(
-		a.Conf,
-		a.AppDeps,
-		detection.NewObjectDetectionService(a.Conf),
-		a.MqttClient,
-	)
+	msgChan := make(chan mqtt.Message, 3)
+	var wg sync.WaitGroup
 
 	receiveMessage := func(_ mqtt.Client, m mqtt.Message) {
-		logger.Debug().Str("topic", m.Topic()).
-			Msg("devicecapture.SubscribeToStartStreamTopic.queueChan - Processing message")
-		value := m.Payload()
-		var msg app.StartStreamMessage
-		if err := json.Unmarshal(value, &msg); err != nil {
-			logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic.queueChan").
-				Msgf("failed to unmarshal message: %v", err)
-			return
-		}
-		logger.Debug().Str("start-stream", msg.DeviceId).Msg("Starting stream")
-		_, err := cameraService.StartStream(ctx, msg.DeviceId)
-		if err != nil {
-			logger.Error().Str("stream-fail", msg.DeviceId).
-				Msgf("%v", err)
-			return
-		}
+		logger.Warn().Str("receiveMessage", m.Topic()).Msg("start")
+		msgChan <- m
+		logger.Warn().Str("receiveMessage", m.Topic()).Msg("end")
 	}
 
 	if err := client.Subscribe("start-stream", receiveMessage); err != nil {
@@ -118,9 +101,53 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 		return err
 	}
 
-	logger.Debug().Msg("deviceCapture -> waiting for appCtx.Done...")
-	select {
-	case <-ctx.Done():
-		return nil
-	}
+	cameraService := camera.NewCameraService(
+		a.Conf,
+		a.AppDeps,
+		detection.NewObjectDetectionService(a.Conf),
+		a.MqttClient,
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var c = 1
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case m, ok := <-msgChan:
+				logger.Warn().Str("msgChan", "start").Msgf("Count %d", c)
+				c = c + 1
+				if !ok {
+					logger.Error().
+						Str("devicecapture", "msgChan !ok").Send()
+					continue
+				}
+				// Shared camera service instance prevents duplicate camera feeds
+				logger.Debug().Str("topic", m.Topic()).
+					Msg("devicecapture.SubscribeToStartStreamTopic.queueChan - Processing message")
+				value := m.Payload()
+				var msg app.StartStreamMessage
+				if err := json.Unmarshal(value, &msg); err != nil {
+					logger.Error().
+						Str("devicecapture", "SubscribeToStartStreamTopic.queueChan").
+						Msgf("failed to unmarshal message: %v", err)
+				}
+				logger.Debug().
+					Str("start-stream", msg.DeviceId).
+					Msg("Starting stream")
+				_, err := cameraService.StartStream(ctx, msg.DeviceId)
+				if err != nil {
+					logger.Error().Str("stream-fail", msg.DeviceId).
+						Msgf("%v", err)
+				}
+				logger.Error().Str("main", "stream goroutine").
+					Msg("continuing")
+				continue
+			}
+		}
+	}()
+	logger.Debug().Msg("deviceCapture -> waiting for wg...")
+	wg.Wait()
+	return nil
 }

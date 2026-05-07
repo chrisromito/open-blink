@@ -103,6 +103,9 @@ func (m *MqttClient) Connect() error {
 	if m.opts.Password != "" {
 		mqOptions.SetPassword(m.opts.Password)
 	}
+	mqOptions.OnConnectionLost = func(c mqtt.Client, err error) {
+		panic(err)
+	}
 	logger.Debug().Msgf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
 	mClient := mqtt.NewClient(mqOptions)
 	// We have to create the connection to the broker manually and verify that there is no error.
@@ -130,7 +133,7 @@ func (m *MqttClient) Publish(topic string, payload interface{}) error {
 
 // Subscribe creates a subscription for the passed topic. The callBack function is used to process any messages that the client receives on that topic. The subscription created will have a QOS of 1.
 func (m *MqttClient) Subscribe(topic string, f mqtt.MessageHandler) error {
-	if token := m.Client.Subscribe(topic, 1, f); token.Wait() && token.Error() != nil {
+	if token := m.Client.Subscribe(topic, 2, f); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	m.topics = append(m.topics, topic)
