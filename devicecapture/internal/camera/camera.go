@@ -82,7 +82,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	if device.DeviceUrl == "" {
 		return &receiver.CaptureSession{}, errors.New("invalid Device URL for device ID")
 	} else {
-		logger.Debug().Msgf("starting stream for device %s @ %s", deviceId, device.DeviceUrl)
+		logger.Debug().Str("service", "camera.StartStream").
+			Msgf("starting stream for device %s @ %s", deviceId, device.DeviceUrl)
 	}
 	// Add id string to our list of streaming IDs
 	s.addId(deviceId)
@@ -99,15 +100,11 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 
 	// wg ends when the stream is complete
 	var wg sync.WaitGroup
-	imgChan := make(chan receiver.Frame, 64)
+	imgChan := make(chan receiver.Frame, 60) // 60 frames = 4 FPS * 15 seconds
 	defer close(imgChan)
-	//outChan := make(chan receiver.Frame, 64)
-	//defer close(outChan)
-	done := make(chan error)
-	defer close(done)
 
 	//streamCtx, cancel := context.WithCancel(ctx)
-	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	streamCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	wg.Add(1)
@@ -116,33 +113,12 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 		defer wg.Done()
 		api := NewApi(deviceId, device.DeviceUrl)
 		apiErr := api.StreamFrames(streamCtx, imgChan)
-		done <- apiErr
 		if apiErr != nil {
-			logger.Error().Msgf("domain -> Start -> api worker -> Error streaming frames: %v", apiErr)
+			logger.Error().Str("service", "camera.StartStream").
+				Msgf("domain -> Start -> api worker -> Error streaming frames: %v", apiErr)
 		}
 		return
 	}()
-
-	// imgChan goroutine pulls from imgChan so they can be consumed via outChan
-	//wg.Add(1)
-	//go func() {
-	//	defer wg.Done()
-	//	for {
-	//		select {
-	//		case <-ctx.Done():
-	//			return
-	//		case <-done:
-	//			return
-	//		case img, ok := <-imgChan:
-	//			if !ok {
-	//				log.Print("CamService -> imgChan not ok, returning")
-	//				return
-	//			}
-	//			session.SetLastFrame(&img)
-	//			outChan <- img
-	//		}
-	//	}
-	//}()
 
 	// imgChan goroutine pulls from imgChan & passes frames to CaptureSession & FrameRepo (respectively)
 	wg.Add(1)
@@ -152,11 +128,10 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 			select {
 			case <-streamCtx.Done():
 				return
-			case <-done:
-				return
 			case img, ok := <-imgChan:
 				if !ok {
-					logger.Error().Msg("CameraService -> imgChan not ok, returning")
+					logger.Error().Str("service", "camera.StartStream").
+						Msg("CameraService -> imgChan not ok, returning")
 					return
 				}
 				if session == nil {
@@ -169,7 +144,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 				doDetect := session.GetFrameCount()%2 == 0
 				e := s.receiveFrame(streamCtx, id, fp, img, doDetect)
 				if e != nil {
-					logger.Error().Msgf("receiveFrame threw %v", e)
+					logger.Error().Str("service", "camera.StartStream").
+						Msgf("receiveFrame threw %v", e)
 					return
 				}
 			}
@@ -177,7 +153,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	}()
 
 	wg.Wait()
-	logger.Error().Msgf("camera.StartStream -> returning")
+	logger.Error().Str("service", "camera.StartStream").
+		Msgf("camera.StartStream -> returning")
 	return session, nil
 }
 

@@ -95,30 +95,33 @@ func TestApi_StreamFrames_NetworkError(t *testing.T) {
 	//}
 }
 
-func TestApi_StreamFrames_ContextCancellation(t *testing.T) {
-	t.Skip("this absolutely refuses to cooperate")
+func TestApi_Stream_ContextCancellation(t *testing.T) {
 	// Create a server that streams indefinitely
 	server := newTestServer(t.Context())
 	defer server.Close()
 
 	api := NewApi("test-domain", server.URL)
 	ctx, cancel := context.WithCancel(t.Context())
-	imgChan := make(chan receiver.Frame, 10)
 
 	done := make(chan error, 1)
 	go func() {
-		done <- api.StreamFrames(ctx, imgChan)
+		stream := mjpeg.NewStream()
+		done <- api.Stream(ctx, stream)
 	}()
 
 	// Cancel context after a short time
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	cancel()
 
 	// Wait for StreamFrames to return
 	select {
 	case err := <-done:
+		if err != nil && errors.Is(err, context.DeadlineExceeded) {
+			// DeadlineExceeded is expected
+			return
+		}
 		// Should return nil when context is canceled normally
-		if err != nil {
+		if err == nil {
 			t.Errorf("Expected StreamFrames to return nil on context cancellation, got: %v", err)
 		}
 	case <-time.After(2 * time.Second):

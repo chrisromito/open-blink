@@ -114,40 +114,48 @@ func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub
 		for {
 			select {
 			case <-ctx.Done():
+				logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
+					Msgf("devicecapture.main returning because ctx.Done()")
 				return
 			case m, ok := <-msgChan:
-				logger.Warn().Str("msgChan", "start").Msgf("Count %d", c)
+				logger.Warn().Str("devicecapture", "SubscribeToStartStreamTopic").
+					Str("msgChan", "start").
+					Msgf("Count %d", c)
 				c = c + 1
 				if !ok {
-					logger.Error().
+					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
 						Str("devicecapture", "msgChan !ok").Send()
 					continue
 				}
 				// Shared camera service instance prevents duplicate camera feeds
 				logger.Debug().Str("topic", m.Topic()).
+					Str("devicecapture", "SubscribeToStartStreamTopic").
 					Msg("devicecapture.SubscribeToStartStreamTopic.queueChan - Processing message")
 				value := m.Payload()
 				var msg app.StartStreamMessage
 				if err := json.Unmarshal(value, &msg); err != nil {
-					logger.Error().
+					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
 						Str("devicecapture", "SubscribeToStartStreamTopic.queueChan").
 						Msgf("failed to unmarshal message: %v", err)
 				}
-				logger.Debug().
+				logger.Debug().Str("devicecapture", "SubscribeToStartStreamTopic").
 					Str("start-stream", msg.DeviceId).
 					Msg("Starting stream")
 				_, err := cameraService.StartStream(ctx, msg.DeviceId)
 				if err != nil {
-					logger.Error().Str("stream-fail", msg.DeviceId).
+					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
+						Str("stream-fail", msg.DeviceId).
 						Msgf("%v", err)
 				}
 				logger.Error().Str("main", "stream goroutine").
+					Str("devicecapture", "SubscribeToStartStreamTopic").
 					Msg("continuing")
 				continue
 			}
 		}
 	}()
-	logger.Debug().Msg("deviceCapture -> waiting for wg...")
+	logger.Debug().Str("devicecapture", "SubscribeToStartStreamTopic").
+		Msg("deviceCapture -> waiting for wg...")
 	wg.Wait()
 	return nil
 }

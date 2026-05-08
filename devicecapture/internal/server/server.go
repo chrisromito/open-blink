@@ -136,7 +136,8 @@ func StreamProxyHandler(a *app.App) http.HandlerFunc {
 		api := camera.NewApi(deviceId, device.DeviceUrl)
 		wg.Add(1)
 		go func() {
-			streamErr := api.Stream(ctx, &wg, stream)
+			defer wg.Done()
+			streamErr := api.Stream(ctx, stream)
 			if streamErr != nil {
 				logger.Fatal().Msgf("server.StreamProxyHandler -> stream error %v", streamErr)
 			}
