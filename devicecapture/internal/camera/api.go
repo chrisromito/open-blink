@@ -57,6 +57,12 @@ func (a *Api) Ping() bool {
 	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
+// Create a channel to handle decoder results
+type decodeResult struct {
+	data []byte
+	err  error
+}
+
 func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	client := &http.Client{}
 	streamUrl := a.Url + "/stream"
@@ -86,27 +92,29 @@ func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	if err2 != nil {
 		return err2
 	}
-
+	decodeChan := make(chan decodeResult, 1)
 	for {
+		go func() {
+			data, dErr := dec.DecodeRaw()
+			decodeChan <- decodeResult{data: data, err: dErr}
+		}()
 		select {
 		case <-ctx.Done():
-			return nil
-		default:
-			b, decErr := dec.DecodeRaw()
-			ctxErr := ctx.Err()
-			if ctxErr != nil {
-				return nil
+			return ctx.Err()
+		case value := <-decodeChan:
+			if value.err != nil {
+				logger.Error().Str("service", "camera.api").Err(value.err).
+					Msgf("api.Stream threw an error in decodeChan")
+				return value.err
 			}
-			if decErr != nil {
-				logger.Error().Msgf("camera.api.Stream() -> exiting due to decoder err: %v", err)
-				return decErr
-			}
-			streamErr := stream.Update(b)
+			streamErr := stream.Update(value.data)
 			if streamErr != nil {
-				logger.Error().Msgf("camera.api -> stream -> error updating stream: %v", err)
+				logger.Error().Str("service", "camera.api").Err(streamErr).
+					Msgf("api.Stream threw an error in decodeChan")
 				return streamErr
 			}
 		}
+
 	}
 }
 
@@ -119,8 +127,6 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	defer func(stream *mjpeg.Stream) {
 		_ = stream.Close()
 	}(stream)
-	stop := make(chan error)
-	defer close(stop)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -130,12 +136,6 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 		for {
 			select {
 			case <-ticker.C:
-				ctxErr := ctx.Err()
-				if ctxErr != nil {
-					logger.Error().Str("service", "camera.api").
-						Msg("camera.api.StreamFrames exiting because ctxErr")
-					return
-				}
 				data := stream.Current()
 				if len(data) > 0 {
 					imgChan <- NewFrame(data)
@@ -143,10 +143,6 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 			case <-ctx.Done():
 				logger.Error().Str("service", "camera.api").
 					Msgf("camera.api.StreamFrames goroutine 1 exiting because ctx.Done()")
-				return
-			case s := <-stop:
-				logger.Error().Str("service", "camera.api").
-					Msgf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
 				return
 			}
 		}
@@ -157,32 +153,15 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 		defer wg.Done()
 		logger.Info().Str("service", "camera.api").
 			Msg("camera.api calling api.Stream()")
-		stop <- a.Stream(ctx, stream)
-		logger.Error().Str("service", "camera.api").
-			Msg("camera.api stream() goroutine finished")
+		streamValue := a.Stream(ctx, stream)
+		logger.Info().Str("service", "camera.api").Err(streamValue).
+			Msg("camera.api StartStream -> api.Stream() finished")
 		return
 	}()
-	//value := <-stop
-	select {
-	case value := <-stop:
-		logger.Error().Str("service", "camera.api").
-			Msg("Stop chan, returning, waiting for wg")
-		wg.Wait()
-		logger.Error().Str("service", "camera.api").
-			Msg("wg.Done returning")
-		return value
-	case <-ctx.Done():
-		logger.Error().Str("service", "camera.api").
-			Msg("ctx.Done, waiting for wg")
-		wg.Wait()
-		logger.Error().Str("service", "camera.api").
-			Msg("wg.Done returning")
-		return nil
-	case <-time.After(60 * time.Second):
-		logger.Error().Str("service", "camera.api").
-			Msg("returning after 60 seconds")
-		return nil
-	}
-
-	//return value
+	logger.Error().Str("service", "camera.api").
+		Msg("ctx.Done, waiting for wg")
+	wg.Wait()
+	logger.Error().Str("service", "camera.api").
+		Msg("wg.Done returning")
+	return nil
 }
