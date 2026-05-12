@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"sync"
@@ -37,6 +38,24 @@ func NewFrame(b []byte) receiver.Frame {
 	}
 }
 
+func NewFrameFromImage(img image.Image) receiver.Frame {
+	var buf bytes.Buffer
+	err := jpeg.Encode(&buf, img, nil)
+	if err != nil {
+		logger.Error().Msgf("Error decoding image: %v", err)
+		return receiver.Frame{
+			Buf:       []byte{},
+			Image:     nil,
+			Timestamp: time.Now().UnixMilli(),
+		}
+	}
+	return receiver.Frame{
+		Buf:       buf.Bytes(),
+		Image:     img,
+		Timestamp: time.Now().UnixMilli(),
+	}
+}
+
 func NewApi(deviceId string, deviceUrl string) Api {
 	return Api{
 		DeviceId: deviceId,
@@ -55,6 +74,37 @@ func (a *Api) Ping() bool {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
+}
+
+func (a *Api) Snapshot(ctx context.Context) (receiver.Frame, error) {
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+	url := a.Url + "/snapshot"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	empty := receiver.Frame{}
+	if err != nil {
+		return empty, err
+	}
+
+	req.Header.Set("Accept", "image/jpeg")
+	resp, err := client.Do(req)
+	if err != nil {
+		return empty, err
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return empty, fmt.Errorf("received %d StatusCode", resp.StatusCode)
+	}
+	img, _, err := image.Decode(resp.Body)
+	if err != nil {
+		return empty, err
+	}
+	return NewFrameFromImage(img), nil
 }
 
 // Create a channel to handle decoder results

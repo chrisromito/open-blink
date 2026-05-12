@@ -64,6 +64,25 @@ func (s *CameraService) IsStreaming(deviceId string) bool {
 	return false
 }
 
+func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
+	stringId := d.StringId()
+	api := NewApi(stringId, d.DeviceUrl)
+	session, sErr := s.FrameRepo.StartSession(stringId)
+	if sErr != nil {
+		return sErr
+	}
+	defer func(FrameRepo receiver.FrameRepository) {
+		_ = FrameRepo.EndSession()
+	}(s.FrameRepo)
+
+	frame, err := api.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	fp := receiver.FramePath(s.Config.VideoPath, session, frame)
+	return s.receiveFrame(ctx, d.ID, fp, frame, true)
+}
+
 func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*receiver.CaptureSession, error) {
 	if s.IsStreaming(deviceId) {
 		return &receiver.CaptureSession{}, errors.New("multiplexing is not supported")
@@ -158,7 +177,7 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	return session, nil
 }
 
-func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath string, frame receiver.Frame, detect bool) error {
+func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, framePath string, frame receiver.Frame, detect bool) error {
 	var wg sync.WaitGroup
 	if cErr := ctx.Err(); cErr != nil {
 		return nil
@@ -167,7 +186,7 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: id, ImagePath: framePath})
+		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: deviceId, ImagePath: framePath})
 		if err != nil {
 			logger.Error().Err(err).
 				Msgf("failed to save image to %s ", framePath)
@@ -177,7 +196,7 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 			return
 		}
 		req := detection.Req{
-			DeviceId: id,
+			DeviceId: deviceId,
 			Frame:    frame,
 		}
 		detections, dErr := s.Detector.DetectObjectsForImage(ctx, req)
@@ -191,11 +210,11 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 		// We have >= 1 detection, store them in the DB & broadcast to MQTT
 		logger.Debug().Msgf("\n\nCameraService: writing detections: %v", detections)
 		// Loop, transpose items, and write to the repo
-		topic := "detection/" + strconv.Itoa(int(id))
+		topic := "detection/" + strconv.Itoa(int(deviceId))
 		var pgDetections []devices.CreateDetectionParams
 		// Set up the slice of DB params
 		for _, d := range detections {
-			pgDetections = append(pgDetections, detectionServiceToPg(id, &imageRecord.ID, d))
+			pgDetections = append(pgDetections, detectionServiceToPg(deviceId, &imageRecord.ID, d))
 		}
 		// Write to the DB
 		toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
