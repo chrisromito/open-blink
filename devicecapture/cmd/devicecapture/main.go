@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -64,12 +65,23 @@ func main() {
 	}()
 
 	// MQTT goroutine
+	//go func() {
+	//	if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
+	//		logger.Warn().Msgf("Error in MQTT subscription: %v", err)
+	//		cancel() // Cancel context to trigger shutdown
+	//	}
+	//	logger.Error().Msgf("devicecapture exiting because the start stream topic exited")
+	//}()
+
 	go func() {
-		if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
-			logger.Warn().Msgf("Error in MQTT subscription: %v", err)
-			cancel() // Cancel context to trigger shutdown
+		for {
+			err := loop(appCtx, a)
+			if err != nil {
+				return
+			}
+			logger.Debug().Str("fn", "main").Msg("sleeping...")
+			time.Sleep(1 * time.Minute)
 		}
-		logger.Error().Msgf("devicecapture exiting because the start stream topic exited")
 	}()
 
 	select {
@@ -80,6 +92,31 @@ func main() {
 		logger.Error().Msgf("devicecapture exiting because sigChan")
 		return
 	}
+}
+
+func loop(ctx context.Context, a *app.App) error {
+	logger.Debug().Str("fn", "main.loop").Msg("begin...")
+	deviceRepo := a.AppDeps.DeviceRepo
+	deviceList, rErr := deviceRepo.ListDevices(ctx)
+	if rErr != nil {
+		return rErr
+	}
+	cs := camera.NewCameraService(
+		a.Conf,
+		a.AppDeps,
+		detection.NewObjectDetectionService(a.Conf),
+		a.MqttClient,
+	)
+
+	for _, device := range deviceList {
+		logger.Info().Str("fn", "main.loop").
+			Msgf("getting snapshot from device %d", device.ID)
+		err := cs.Snapshot(ctx, device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
