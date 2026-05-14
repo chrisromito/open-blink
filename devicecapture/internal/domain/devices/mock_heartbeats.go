@@ -8,22 +8,22 @@ import (
 
 type MockHeartbeat struct {
 	mu  sync.Mutex
-	hbs []*Heartbeat
+	hbs []Heartbeat
 }
 
 func NewMockHeartbeat() *MockHeartbeat {
 	return &MockHeartbeat{
-		hbs: []*Heartbeat{},
+		hbs: []Heartbeat{},
 	}
 }
 
-func (h *MockHeartbeat) GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]*Heartbeat, error) {
+func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceID int64) ([]Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	var result []*Heartbeat
+	var result []Heartbeat
 	for _, heartbeat := range h.hbs {
-		if heartbeat.DeviceID == deviceId {
+		if heartbeat.DeviceID == deviceID {
 			result = append(result, heartbeat)
 		}
 	}
@@ -31,11 +31,11 @@ func (h *MockHeartbeat) GetDeviceHeartBeats(ctx context.Context, deviceId int64)
 	return result, nil
 }
 
-func (h *MockHeartbeat) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]*Heartbeat, error) {
+func (h *MockHeartbeat) HeartBeatsAfter(_ context.Context, createdAt time.Time) ([]Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	var result []*Heartbeat
+	var result []Heartbeat
 	for _, heartbeat := range h.hbs {
 		if heartbeat.CreatedAt.After(createdAt) {
 			result = append(result, heartbeat)
@@ -45,21 +45,21 @@ func (h *MockHeartbeat) HeartBeatsAfter(ctx context.Context, createdAt time.Time
 	return result, nil
 }
 
-func (h *MockHeartbeat) LatestBeats(ctx context.Context) ([]*LatestBeatsRow, error) {
+func (h *MockHeartbeat) LatestBeats(_ context.Context) ([]LatestBeatsRow, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	// Find the latest heartbeat for each device
-	deviceLatest := make(map[int64]*Heartbeat)
+	deviceLatest := make(map[int64]Heartbeat)
 	for _, heartbeat := range h.hbs {
 		if latest, exists := deviceLatest[heartbeat.DeviceID]; !exists || heartbeat.CreatedAt.After(latest.CreatedAt) {
 			deviceLatest[heartbeat.DeviceID] = heartbeat
 		}
 	}
 
-	var result []*LatestBeatsRow
+	var result []LatestBeatsRow
 	for _, heartbeat := range deviceLatest {
-		row := &LatestBeatsRow{
+		row := LatestBeatsRow{
 			DeviceID:  heartbeat.DeviceID,
 			CreatedAt: heartbeat.CreatedAt,
 			ID:        heartbeat.ID,
@@ -73,13 +73,13 @@ func (h *MockHeartbeat) LatestBeats(ctx context.Context) ([]*LatestBeatsRow, err
 }
 
 // RecordBeat Record a DeviceHeartbeat
-func (h *MockHeartbeat) RecordBeat(ctx context.Context, deviceId int64) (*Heartbeat, error) {
+func (h *MockHeartbeat) RecordBeat(_ context.Context, deviceID int64) (Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	heartbeat := &Heartbeat{
+	heartbeat := Heartbeat{
 		ID:        int64(len(h.hbs) + 1),
-		DeviceID:  deviceId,
+		DeviceID:  deviceID,
 		CreatedAt: time.Now(),
 	}
 
@@ -87,13 +87,13 @@ func (h *MockHeartbeat) RecordBeat(ctx context.Context, deviceId int64) (*Heartb
 	return heartbeat, nil
 }
 
-func (h *MockHeartbeat) DeleteBeats(ctx context.Context, deviceId int64) error {
+func (h *MockHeartbeat) DeleteBeats(_ context.Context, deviceID int64) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	var filteredHeartbeats []*Heartbeat
+	var filteredHeartbeats []Heartbeat
 	for _, heartbeat := range h.hbs {
-		if heartbeat.DeviceID != deviceId {
+		if heartbeat.DeviceID != deviceID {
 			filteredHeartbeats = append(filteredHeartbeats, heartbeat)
 		}
 	}

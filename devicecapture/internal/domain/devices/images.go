@@ -18,6 +18,6 @@ type CreateImageParams struct {
 }
 
 type ImageRepo interface {
-	CreateImage(ctx context.Context, params CreateImageParams) (*DeviceImage, error)
-	GetImages(ctx context.Context, deviceId int64) ([]*DeviceImage, error)
+	CreateImage(ctx context.Context, params CreateImageParams) (DeviceImage, error)
+	GetImages(ctx context.Context, deviceId int64) ([]DeviceImage, error)
 }

@@ -7,13 +7,13 @@ import (
 	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/pubsub"
-	"encoding/json"
 	"errors"
-	"log"
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // CameraService provides high-level methods for interacting with camera devices
@@ -50,7 +50,7 @@ func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection
 func (s *CameraService) IsValidId(deviceId string) bool {
 	id, err := strconv.ParseInt(deviceId, 10, 64)
 	d, err2 := s.DeviceRepo.GetDevice(context.Background(), id)
-	return err == nil && err2 == nil && d != nil
+	return err == nil && err2 == nil && d.ID != 0
 }
 
 func (s *CameraService) IsStreaming(deviceId string) bool {
@@ -62,6 +62,25 @@ func (s *CameraService) IsStreaming(deviceId string) bool {
 		}
 	}
 	return false
+}
+
+func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
+	stringId := d.StringId()
+	api := NewApi(stringId, d.DeviceUrl)
+	session, sErr := s.FrameRepo.StartSession(stringId)
+	if sErr != nil {
+		return sErr
+	}
+	defer func(FrameRepo receiver.FrameRepository) {
+		_ = FrameRepo.EndSession()
+	}(s.FrameRepo)
+
+	frame, err := api.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	fp := receiver.FramePath(s.Config.VideoPath, session, frame)
+	return s.receiveFrame(ctx, d.ID, fp, frame, true)
 }
 
 func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*receiver.CaptureSession, error) {
@@ -82,7 +101,8 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	if device.DeviceUrl == "" {
 		return &receiver.CaptureSession{}, errors.New("invalid Device URL for device ID")
 	} else {
-		log.Printf("starting stream for device %s @ %s", deviceId, device.DeviceUrl)
+		logger.Debug().Str("service", "camera.StartStream").
+			Msgf("starting stream for device %s @ %s", deviceId, device.DeviceUrl)
 	}
 	// Add id string to our list of streaming IDs
 	s.addId(deviceId)
@@ -99,66 +119,52 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 
 	// wg ends when the stream is complete
 	var wg sync.WaitGroup
-	imgChan := make(chan receiver.Frame, 64)
-	outChan := make(chan receiver.Frame, 64)
-	done := make(chan error)
+	imgChan := make(chan receiver.Frame, 60) // 60 frames = 4 FPS * 15 seconds
 	defer close(imgChan)
-	defer close(outChan)
-	defer close(done)
+
+	//streamCtx, cancel := context.WithCancel(ctx)
+	streamCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 
 	wg.Add(1)
 	// api goroutine receives JPEGs from the API & passes them to imageChan
 	go func() {
 		defer wg.Done()
 		api := NewApi(deviceId, device.DeviceUrl)
-		apiErr := api.StreamFrames(ctx, imgChan)
-		done <- apiErr
+		apiErr := api.StreamFrames(streamCtx, imgChan)
 		if apiErr != nil {
-			log.Printf("domain -> Start -> api worker -> Error streaming frames: %v", apiErr)
+			logger.Error().Str("service", "camera.StartStream").
+				Msgf("domain -> Start -> api worker -> Error streaming frames: %v", apiErr)
 		}
 		return
 	}()
 
-	// imgChan goroutine pulls from imgChan so they can be consumed via outChan
+	// imgChan goroutine pulls from imgChan & passes frames to CaptureSession & FrameRepo (respectively)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-done:
+			case <-streamCtx.Done():
 				return
 			case img, ok := <-imgChan:
 				if !ok {
-					log.Print("CamService -> imgChan not ok, returning")
-					return
-				}
-				outChan <- img
-			}
-		}
-	}()
-
-	// outChan goroutine pulls from outChan & passes frames to CaptureSession & FrameRepo (respectively)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-done:
-				return
-			case img, ok := <-outChan:
-				if !ok {
-					log.Print("CameraService -> outChan not ok, returning")
+					logger.Error().Str("service", "camera.StartStream").
+						Msg("CameraService -> imgChan not ok, returning")
 					return
 				}
 				if session == nil {
 					continue
 				}
+
+				session.SetLastFrame(&img)
 				fp := receiver.FramePath(s.Config.VideoPath, session, img)
-				// Only run inference on 1/5 frames
-				doDetect := session.GetFrameCount()%5 == 0
-				e := s.receiveFrame(ctx, id, fp, img, doDetect)
+				// Only run inference on 1/2 frames
+				doDetect := session.GetFrameCount()%2 == 0
+				e := s.receiveFrame(streamCtx, id, fp, img, doDetect)
 				if e != nil {
-					log.Fatalf("receiveFrame threw %v", e)
+					logger.Error().Str("service", "camera.StartStream").
+						Msgf("receiveFrame threw %v", e)
 					return
 				}
 			}
@@ -166,10 +172,12 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	}()
 
 	wg.Wait()
+	logger.Error().Str("service", "camera.StartStream").
+		Msgf("camera.StartStream -> returning")
 	return session, nil
 }
 
-func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath string, frame receiver.Frame, detect bool) error {
+func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, framePath string, frame receiver.Frame, detect bool) error {
 	var wg sync.WaitGroup
 	if cErr := ctx.Err(); cErr != nil {
 		return nil
@@ -178,54 +186,61 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: id, ImagePath: framePath})
+		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: deviceId, ImagePath: framePath})
 		if err != nil {
-			log.Printf("failed to save image to %s", framePath)
-			log.Printf("    image save err %v", err)
+			logger.Error().Err(err).
+				Msgf("failed to save image to %s ", framePath)
 			return
 		}
 		if !detect {
 			return
 		}
 		req := detection.Req{
-			DeviceId: id,
+			DeviceId: deviceId,
 			Frame:    frame,
 		}
 		detections, dErr := s.Detector.DetectObjectsForImage(ctx, req)
 		if dErr != nil {
-			log.Printf("\n\ndetection err: %v", dErr)
-		} else {
-			log.Printf("\n\nCameraService: writing detections: %v", detections)
-			// Loop, transpose items, and write to the repo
-			topic := "detection/" + strconv.Itoa(int(id))
-			var pgDetections []devices.CreateDetectionParams
-			// Set up the slice of DB params
-			for _, d := range detections {
-				pgDetections = append(pgDetections, detectionServiceToPg(id, &imageRecord.ID, d))
-			}
-			// Write to the DB
-			toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
-			if err != nil {
-				log.Printf("error writing detections to detection repo %v", err)
+			logger.Error().Msgf("\n\ndetection err: %v", dErr)
+			return
+		}
+		if len(detections) < 1 {
+			return
+		}
+		// We have >= 1 detection, store them in the DB & broadcast to MQTT
+		logger.Debug().Msgf("\n\nCameraService: writing detections: %v", detections)
+		// Loop, transpose items, and write to the repo
+		topic := "detection/" + strconv.Itoa(int(deviceId))
+		var pgDetections []devices.CreateDetectionParams
+		// Set up the slice of DB params
+		for _, d := range detections {
+			pgDetections = append(pgDetections, detectionServiceToPg(deviceId, &imageRecord.ID, d))
+		}
+		// Write to the DB
+		toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
+		if err != nil {
+			logger.Error().Msgf("error writing detections to detection repo %v", err)
+			return
+		}
+		// Loop through, publish each detection
+		thisIp := s.Config.ThisIp
+		for _, d := range toPublish {
+			payload, jsonErr := receiver.DetectionToMsg(thisIp, framePath, d)
+			//payload, jsonErr := json.Marshal(d)
+			if jsonErr != nil {
+				logger.Error().Msgf("error marshalling %v to JSON: %v", d, jsonErr)
 				return
 			}
-			// Loop through, publish each detection
-			for _, d := range toPublish {
-				payload, jsonErr := json.Marshal(d)
-				if jsonErr != nil {
-					log.Printf("error marshalling %v to JSON: %v", d, jsonErr)
-					return
-				}
-				// publish successful detections
-				qtErr := s.mqttClient.Publish(topic, payload)
-				if qtErr != nil {
-					log.Printf("error publishing %v: %v", payload, qtErr)
-					return
-				} else {
-					log.Printf("published %v to %s", payload, topic)
-				}
+			// publish successful detections
+			qtErr := s.mqttClient.Publish(topic, payload)
+			if qtErr != nil {
+				logger.Error().Msgf("error publishing %v: %v", payload, qtErr)
+				return
+			} else {
+				logger.Info().Msgf("published %v to %s", payload, topic)
 			}
 		}
+		return
 	}()
 
 	wg.Add(1)
@@ -234,8 +249,9 @@ func (s *CameraService) receiveFrame(ctx context.Context, id int64, framePath st
 		// Update FrameRepo
 		repoErr := s.FrameRepo.ReceiveFrame(frame, framePath)
 		if repoErr != nil {
-			log.Printf("CameraService.startStream.FrameRepo.ReceiveFrame threw an error %v", repoErr)
+			logger.Error().Msgf("CameraService.startStream.FrameRepo.ReceiveFrame threw an error %v", repoErr)
 		}
+		return
 	}()
 
 	wg.Wait()
@@ -258,10 +274,15 @@ func (s *CameraService) removeId(deviceId string) {
 }
 
 func detectionServiceToPg(deviceId int64, imageID *int64, d detection.Detection) devices.CreateDetectionParams {
+	Bbox := [][]float64{
+		{d.Bbox.X1, d.Bbox.Y1},
+		{d.Bbox.X2, d.Bbox.Y2},
+	}
 	return devices.CreateDetectionParams{
 		DeviceID:   deviceId,
 		Label:      d.Label,
 		Confidence: d.Confidence,
 		ImageID:    imageID,
+		Bbox:       Bbox,
 	}
 }

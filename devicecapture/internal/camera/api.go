@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 	"errors"
 	"fmt"
 	"github.com/mattn/go-mjpeg"
 	"image"
+	"image/jpeg"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -23,7 +24,7 @@ type Api struct {
 func NewFrame(b []byte) receiver.Frame {
 	img, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
-		log.Printf("Error decoding image: %v", err)
+		logger.Error().Msgf("Error decoding image: %v", err)
 		return receiver.Frame{
 			Buf:       []byte{},
 			Image:     nil,
@@ -32,6 +33,24 @@ func NewFrame(b []byte) receiver.Frame {
 	}
 	return receiver.Frame{
 		Buf:       b,
+		Image:     img,
+		Timestamp: time.Now().UnixMilli(),
+	}
+}
+
+func NewFrameFromImage(img image.Image) receiver.Frame {
+	var buf bytes.Buffer
+	err := jpeg.Encode(&buf, img, nil)
+	if err != nil {
+		logger.Error().Msgf("Error decoding image: %v", err)
+		return receiver.Frame{
+			Buf:       []byte{},
+			Image:     nil,
+			Timestamp: time.Now().UnixMilli(),
+		}
+	}
+	return receiver.Frame{
+		Buf:       buf.Bytes(),
 		Image:     img,
 		Timestamp: time.Now().UnixMilli(),
 	}
@@ -46,21 +65,58 @@ func NewApi(deviceId string, deviceUrl string) Api {
 
 func (a *Api) Ping() bool {
 	pingUrl := a.Url + "/ping"
-	resp, err := http.Get(pingUrl)
+	client := &http.Client{
+		Timeout: 1 * time.Second,
+	}
+	resp, err := client.Get(pingUrl)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
-func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stream) error {
-	defer wg.Done()
+func (a *Api) Snapshot(ctx context.Context) (receiver.Frame, error) {
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 2 * time.Second,
 	}
+	url := a.Url + "/snapshot"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	empty := receiver.Frame{}
+	if err != nil {
+		return empty, err
+	}
+
+	req.Header.Set("Accept", "image/jpeg")
+	resp, err := client.Do(req)
+	if err != nil {
+		return empty, err
+	}
+
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return empty, fmt.Errorf("received %d StatusCode", resp.StatusCode)
+	}
+	img, _, err := image.Decode(resp.Body)
+	if err != nil {
+		return empty, err
+	}
+	return NewFrameFromImage(img), nil
+}
+
+// Create a channel to handle decoder results
+type decodeResult struct {
+	data []byte
+	err  error
+}
+
+func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
+	client := &http.Client{}
 	streamUrl := a.Url + "/stream"
-	log.Printf("camera.api -> stream -> Starting stream from %s", streamUrl)
+	logger.Debug().Msgf("camera.api -> stream -> Starting stream from %s", streamUrl)
 	req, err := http.NewRequestWithContext(ctx, "GET", streamUrl, nil)
 	if err != nil {
 		return err
@@ -72,67 +128,71 @@ func (a *Api) Stream(ctx context.Context, wg *sync.WaitGroup, stream *mjpeg.Stre
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("camera.api -> stream -> Error streaming: %v", err)
+		logger.Error().Msgf("camera.api -> stream -> Error streaming: %v", err)
 		return err
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("camera.api -> stream -> Not OK status: %v %d", err, resp.StatusCode)
+		logger.Error().Msgf("camera.api -> stream -> Not OK status: %v %d", err, resp.StatusCode)
 		return fmt.Errorf("received %d StatusCode", resp.StatusCode)
 	}
 	dec, err2 := mjpeg.NewDecoderFromResponse(resp)
 	if err2 != nil {
 		return err2
 	}
-
+	decodeChan := make(chan decodeResult, 1)
 	for {
-		b, decErr := dec.DecodeRaw()
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			return nil
+		go func() {
+			data, dErr := dec.DecodeRaw()
+			decodeChan <- decodeResult{data: data, err: dErr}
+		}()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case value := <-decodeChan:
+			if value.err != nil {
+				logger.Error().Str("service", "camera.api").Err(value.err).
+					Msgf("api.Stream threw an error in decodeChan")
+				return value.err
+			}
+			streamErr := stream.Update(value.data)
+			if streamErr != nil {
+				logger.Error().Str("service", "camera.api").Err(streamErr).
+					Msgf("api.Stream threw an error in decodeChan")
+				return streamErr
+			}
 		}
-		if decErr != nil {
-			log.Printf("camera.api -> stream -> Error decoding: %v", err)
-			return decErr
-		}
-		streamErr := stream.Update(b)
-		if streamErr != nil {
-			log.Printf("camera.api -> stream -> error updating stream: %v", err)
-			return streamErr
-		}
+
 	}
 }
 
 func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) error {
-	var wg sync.WaitGroup
+	// Ping the API before we start streaming
+	if !a.Ping() {
+		return errors.New(fmt.Sprintf("could not stream from URL %s", a.Url))
+	}
 	stream := mjpeg.NewStream()
 	defer func(stream *mjpeg.Stream) {
 		_ = stream.Close()
 	}(stream)
-	stop := make(chan error)
-	done := make(chan error)
-	defer close(done)
 
+	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		for {
 			select {
 			case <-ticker.C:
-				ctxErr := ctx.Err()
-				if ctxErr != nil {
-					return
-				}
 				data := stream.Current()
 				if len(data) > 0 {
 					imgChan <- NewFrame(data)
 				}
-			case s := <-stop:
-				done <- s
-				log.Printf("camera.api.StreamFrames goroutine 1 exiting because stop chan %v", s)
+			case <-ctx.Done():
+				logger.Error().Str("service", "camera.api").
+					Msgf("camera.api.StreamFrames goroutine 1 exiting because ctx.Done()")
 				return
 			}
 		}
@@ -141,16 +201,17 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		wg.Add(1)
-		err := a.Stream(ctx, &wg, stream)
-		if errors.Is(err, context.DeadlineExceeded) {
-			stop <- nil
-		} else {
-			stop <- err
-		}
+		logger.Info().Str("service", "camera.api").
+			Msg("camera.api calling api.Stream()")
+		streamValue := a.Stream(ctx, stream)
+		logger.Info().Str("service", "camera.api").Err(streamValue).
+			Msg("camera.api StartStream -> api.Stream() finished")
 		return
 	}()
+	logger.Error().Str("service", "camera.api").
+		Msg("ctx.Done, waiting for wg")
 	wg.Wait()
-	value := <-stop
-	return value
+	logger.Error().Str("service", "camera.api").
+		Msg("wg.Done returning")
+	return nil
 }

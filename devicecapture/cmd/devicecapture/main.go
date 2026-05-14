@@ -7,12 +7,12 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
+	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
-	"encoding/json"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"log"
+	"github.com/google/uuid"
 	"os"
 	"os/signal"
 	"sync"
@@ -22,12 +22,12 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-server", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper("go-server-"+uuid.New().String(), conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
-		log.Fatalf("Error creating MQTT client: %v", cerr)
+		logger.Fatal().Err(cerr).Msgf("Error creating MQTT client: %v", cerr)
 	}
 	if !client.Valid() {
-		log.Fatalf("Failed to connect to a client")
+		logger.Fatal().Msgf("Failed to connect to a client")
 	}
 	defer func(client *pubsub.MqttClient) {
 		_ = client.Close()
@@ -35,7 +35,7 @@ func main() {
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
 	if dberr != nil {
-		log.Fatalf("Error connecting to database: %v", dberr)
+		logger.Fatal().Msgf("Error connecting to database: %v", dberr)
 	}
 
 	defer db.Db.Close()
@@ -46,7 +46,7 @@ func main() {
 		repos.NewPgHeartbeatRepo(queries),
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
-		pubsub.NewMqttReceiver(&client, conf.VideoPath),
+		pubsub.NewMqttReceiver(&client, conf),
 	)
 
 	//-- App
@@ -54,108 +54,71 @@ func main() {
 	defer cancel()
 
 	a := app.NewApp(conf, &client, db, deps)
+	sigChan := make(chan os.Signal, 1)
+	defer close(sigChan)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// MQTT goroutine
 	go func() {
-		if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
-			log.Printf("Error in MQTT subscription: %v", err)
-			cancel() // Cancel context to trigger shutdown
+		<-sigChan
+		cancel()
+	}()
+
+	// Capture loop goroutine
+	go func() {
+		for {
+			select {
+			case <-appCtx.Done():
+				return
+			default:
+				err := loop(appCtx, a)
+				if err != nil {
+					return
+				}
+				logger.Debug().Str("fn", "main").Msg("sleeping...")
+				time.Sleep(1 * time.Minute)
+			}
 		}
 	}()
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
+
+	select {
+	case <-appCtx.Done():
+		logger.Error().Msgf("devicecapture exiting because appCtx.Done()")
+		return
+	case <-sigChan:
+		logger.Error().Msgf("devicecapture exiting because sigChan")
+		return
+	}
 }
 
-func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
-	//topics := []string{"start-stream", "motion-detected"}
-
-	inChan := make(chan mqtt.Message, 3)
-	queueChan := make(chan mqtt.Message, 3)
-	// Track subscriptions for cleanup
-	var subscriptionWg sync.WaitGroup
-
-	// pull from inChan & push to queueChan
-	subscriptionWg.Add(1)
-	go func() {
-		defer subscriptionWg.Done()
-		for {
-			select {
-			case msg, ok := <-inChan:
-				if !ok {
-					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because inChan !ok")
-					return
-				}
-				log.Printf("pushing message to queueChan")
-				queueChan <- msg
-			case <-ctx.Done():
-				return
+func loop(ctx context.Context, a *app.App) error {
+	logger.Debug().Str("fn", "main.loop").Msg("begin...")
+	deviceRepo := a.AppDeps.DeviceRepo
+	deviceList, rErr := deviceRepo.ListDevices(ctx)
+	if rErr != nil {
+		return rErr
+	}
+	cs := camera.NewCameraService(
+		a.Conf,
+		a.AppDeps,
+		detection.NewObjectDetectionService(a.Conf),
+		a.MqttClient,
+	)
+	var wg sync.WaitGroup
+	// Call "Snapshot" for each device
+	for _, device := range deviceList {
+		wg.Add(1)
+		go func(d devices.Device) {
+			defer wg.Done()
+			logger.Info().Str("fn", "main.loop").
+				Msgf("getting snapshot from device %d", device.ID)
+			err := cs.Snapshot(ctx, device)
+			if err != nil {
+				logger.Error().Str("fn", "main.loop").
+					Msgf("error %v", err)
 			}
-		}
-	}()
-
-	subscriptionWg.Add(1)
-	go func() {
-		defer subscriptionWg.Done()
-		for {
-			select {
-			case m, ok := <-queueChan:
-				// Handle start messages
-				msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				if !ok {
-					log.Printf("devicecapture.SubscribeToStartStreamTopic() -> exiting because queueChan !ok")
-					cancel()
-					return
-				}
-
-				log.Printf("Processing message from topic: %s", m.Topic())
-
-				value := m.Payload()
-				var msg app.StartStreamMessage
-				if err := json.Unmarshal(value, &msg); err != nil {
-					log.Printf("failed to unmarshal message: %v", err)
-					cancel()
-					return
-				}
-
-				// Create camera service instance for this message
-				cameraService := camera.NewCameraService(
-					a.Conf,
-					a.AppDeps,
-					detection.NewObjectDetectionService(a.Conf),
-					a.MqttClient,
-				)
-				log.Printf("starting stream for device %s", msg.DeviceId)
-				_, err := cameraService.StartStream(msgCtx, msg.DeviceId)
-				if err != nil {
-					log.Printf("failed to start stream for device %s: %v", msg.DeviceId, err)
-					cancel()
-					return
-				}
-				cancel()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	receiveMessage := func(_ mqtt.Client, m mqtt.Message) {
-		subscriptionWg.Add(1)
-		defer subscriptionWg.Done()
-		log.Printf("received message on topic %v", m.Topic())
-		inChan <- m
+		}(device)
 	}
-
-	if err := client.Subscribe("start-stream", receiveMessage); err != nil {
-		log.Printf("Error subscribing to topic %s: %v", "start-stream", err)
-		return err
-	}
-	if err := client.Subscribe("motion-detected", receiveMessage); err != nil {
-		log.Printf("Error subscribing to topic %s: %v", "motion-detected", err)
-		return err
-	}
-
-	log.Println("deviceCapture -> waiting for subscription cleanup...")
-	subscriptionWg.Wait()
+	// Wait until we grab images and detections for all devices
+	wg.Wait()
 	return nil
 }
