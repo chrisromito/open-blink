@@ -7,12 +7,11 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
+	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
-	"encoding/json"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"os"
 	"os/signal"
@@ -64,23 +63,20 @@ func main() {
 		cancel()
 	}()
 
-	// MQTT goroutine
-	//go func() {
-	//	if err := SubscribeToStartStreamTopic(appCtx, a, &client); err != nil {
-	//		logger.Warn().Msgf("Error in MQTT subscription: %v", err)
-	//		cancel() // Cancel context to trigger shutdown
-	//	}
-	//	logger.Error().Msgf("devicecapture exiting because the start stream topic exited")
-	//}()
-
+	// Capture loop goroutine
 	go func() {
 		for {
-			err := loop(appCtx, a)
-			if err != nil {
+			select {
+			case <-appCtx.Done():
 				return
+			default:
+				err := loop(appCtx, a)
+				if err != nil {
+					return
+				}
+				logger.Debug().Str("fn", "main").Msg("sleeping...")
+				time.Sleep(1 * time.Minute)
 			}
-			logger.Debug().Str("fn", "main").Msg("sleeping...")
-			time.Sleep(1 * time.Minute)
 		}
 	}()
 
@@ -107,92 +103,22 @@ func loop(ctx context.Context, a *app.App) error {
 		detection.NewObjectDetectionService(a.Conf),
 		a.MqttClient,
 	)
-
-	for _, device := range deviceList {
-		logger.Info().Str("fn", "main.loop").
-			Msgf("getting snapshot from device %d", device.ID)
-		err := cs.Snapshot(ctx, device)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func SubscribeToStartStreamTopic(ctx context.Context, a *app.App, client *pubsub.MqttClient) error {
-	msgChan := make(chan mqtt.Message, 3)
 	var wg sync.WaitGroup
-
-	receiveMessage := func(_ mqtt.Client, m mqtt.Message) {
-		logger.Warn().Str("receiveMessage", m.Topic()).Msg("start")
-		msgChan <- m
-		logger.Warn().Str("receiveMessage", m.Topic()).Msg("end")
-	}
-
-	if err := client.Subscribe("start-stream", receiveMessage); err != nil {
-		logger.Error().Msgf("Error subscribing to topic %s: %v", "start-stream", err)
-		return err
-	}
-	if err := client.Subscribe("motion-detected", receiveMessage); err != nil {
-		logger.Error().Msgf("Error subscribing to topic %s: %v", "motion-detected", err)
-		return err
-	}
-
-	cameraService := camera.NewCameraService(
-		a.Conf,
-		a.AppDeps,
-		detection.NewObjectDetectionService(a.Conf),
-		a.MqttClient,
-	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var c = 1
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
-					Msgf("devicecapture.main returning because ctx.Done()")
-				return
-			case m, ok := <-msgChan:
-				logger.Warn().Str("devicecapture", "SubscribeToStartStreamTopic").
-					Str("msgChan", "start").
-					Msgf("Count %d", c)
-				c = c + 1
-				if !ok {
-					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
-						Str("devicecapture", "msgChan !ok").Send()
-					continue
-				}
-				// Shared camera service instance prevents duplicate camera feeds
-				logger.Debug().Str("topic", m.Topic()).
-					Str("devicecapture", "SubscribeToStartStreamTopic").
-					Msg("devicecapture.SubscribeToStartStreamTopic.queueChan - Processing message")
-				value := m.Payload()
-				var msg app.StartStreamMessage
-				if err := json.Unmarshal(value, &msg); err != nil {
-					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
-						Str("devicecapture", "SubscribeToStartStreamTopic.queueChan").
-						Msgf("failed to unmarshal message: %v", err)
-				}
-				logger.Debug().Str("devicecapture", "SubscribeToStartStreamTopic").
-					Str("start-stream", msg.DeviceId).
-					Msg("Starting stream")
-				_, err := cameraService.StartStream(ctx, msg.DeviceId)
-				if err != nil {
-					logger.Error().Str("devicecapture", "SubscribeToStartStreamTopic").
-						Str("stream-fail", msg.DeviceId).
-						Msgf("%v", err)
-				}
-				logger.Error().Str("main", "stream goroutine").
-					Str("devicecapture", "SubscribeToStartStreamTopic").
-					Msg("continuing")
-				continue
+	// Call "Snapshot" for each device
+	for _, device := range deviceList {
+		wg.Add(1)
+		go func(d devices.Device) {
+			defer wg.Done()
+			logger.Info().Str("fn", "main.loop").
+				Msgf("getting snapshot from device %d", device.ID)
+			err := cs.Snapshot(ctx, device)
+			if err != nil {
+				logger.Error().Str("fn", "main.loop").
+					Msgf("error %v", err)
 			}
-		}
-	}()
-	logger.Debug().Str("devicecapture", "SubscribeToStartStreamTopic").
-		Msg("deviceCapture -> waiting for wg...")
+		}(device)
+	}
+	// Wait until we grab images and detections for all devices
 	wg.Wait()
 	return nil
 }

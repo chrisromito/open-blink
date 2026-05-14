@@ -105,7 +105,6 @@ WHERE device_id = @device_id
   AND image_id = COALESCE(@image_id, image_id)
 ORDER BY created_at DESC;
 
-
 -- name: DeleteDetections :exec
 DELETE
 FROM detections
