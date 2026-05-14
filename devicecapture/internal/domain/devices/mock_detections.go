@@ -7,21 +7,21 @@ import (
 )
 
 type MockDetection struct {
-	ds []*Detection
+	ds []Detection
 	mu sync.Mutex
 }
 
 func NewMockDetection() *MockDetection {
 	return &MockDetection{
-		ds: []*Detection{},
+		ds: []Detection{},
 	}
 }
 
-func (d *MockDetection) GetDetectionsAfter(ctx context.Context, params QueryParams) ([]*Detection, error) {
+func (d *MockDetection) GetDetectionsAfter(_ context.Context, params QueryParams) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var result []*Detection
+	var result []Detection
 	for _, detection := range d.ds {
 		if detection.CreatedAt.After(params.CreatedAt) {
 			result = append(result, detection)
@@ -31,11 +31,11 @@ func (d *MockDetection) GetDetectionsAfter(ctx context.Context, params QueryPara
 	return result, nil
 }
 
-func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params QueryParams) ([]*Detection, error) {
+func (d *MockDetection) GetDeviceDetectionsAfter(_ context.Context, params QueryParams) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var result []*Detection
+	var result []Detection
 	for _, detection := range d.ds {
 		if detection.DeviceID == params.DeviceID && detection.CreatedAt.After(params.CreatedAt) {
 			result = append(result, detection)
@@ -45,10 +45,10 @@ func (d *MockDetection) GetDeviceDetectionsAfter(ctx context.Context, params Que
 	return result, nil
 }
 
-func (d *MockDetection) CreateDetection(ctx context.Context, params CreateDetectionParams) (*Detection, error) {
+func (d *MockDetection) CreateDetection(_ context.Context, params CreateDetectionParams) (Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	detection := &Detection{
+	detection := Detection{
 		ID:         int64(len(d.ds) + 1),
 		DeviceID:   params.DeviceID,
 		CreatedAt:  time.Now(),
@@ -60,10 +60,10 @@ func (d *MockDetection) CreateDetection(ctx context.Context, params CreateDetect
 	return detection, nil
 }
 
-func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDetectionParams) ([]*Detection, error) {
+func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDetectionParams) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	var value []*Detection
+	var value []Detection
 	for _, param := range params {
 		record, err := d.CreateDetection(ctx, param)
 		if err != nil {
@@ -74,11 +74,11 @@ func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDet
 	return value, nil
 }
 
-func (d *MockDetection) DeleteDetections(ctx context.Context, deviceId int64) error {
+func (d *MockDetection) DeleteDetections(_ context.Context, deviceId int64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var filteredDetections []*Detection
+	var filteredDetections []Detection
 	for _, detection := range d.ds {
 		if detection.DeviceID != deviceId {
 			filteredDetections = append(filteredDetections, detection)

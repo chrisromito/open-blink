@@ -20,10 +20,10 @@ type LatestBeatsRow struct {
 }
 
 type HeartbeatRepo interface {
-	GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]*Heartbeat, error)
-	HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]*Heartbeat, error)
-	LatestBeats(ctx context.Context) ([]*LatestBeatsRow, error)
+	GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]Heartbeat, error)
+	HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]Heartbeat, error)
+	LatestBeats(ctx context.Context) ([]LatestBeatsRow, error)
 	// RecordBeat Record a DeviceHeartbeat
-	RecordBeat(ctx context.Context, deviceId int64) (*Heartbeat, error)
+	RecordBeat(ctx context.Context, deviceId int64) (Heartbeat, error)
 	DeleteBeats(ctx context.Context, deviceId int64) error
 }

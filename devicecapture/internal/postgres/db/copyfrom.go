@@ -33,6 +33,7 @@ func (r iteratorForCreateDetections) Values() ([]interface{}, error) {
 		r.rows[0].Label,
 		r.rows[0].Confidence,
 		r.rows[0].ImageID,
+		r.rows[0].Bbox,
 	}, nil
 }
 
@@ -41,5 +42,5 @@ func (r iteratorForCreateDetections) Err() error {
 }
 
 func (q *Queries) CreateDetections(ctx context.Context, arg []CreateDetectionsParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"detections"}, []string{"device_id", "label", "confidence", "image_id"}, &iteratorForCreateDetections{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"detections"}, []string{"device_id", "label", "confidence", "image_id", "bbox"}, &iteratorForCreateDetections{rows: arg})
 }

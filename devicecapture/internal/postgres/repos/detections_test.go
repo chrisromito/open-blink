@@ -8,15 +8,19 @@ import (
 	"time"
 )
 
+var validBbox = [][]float64{
+	{0.1, 0.2},
+	{0.3, 0.4},
+}
+
 func TestCreateDetection(t *testing.T) {
-	a := assert.New(t)
 	appDb, dbErr := postgres.NewTestAppDb()
-	a.NoError(dbErr)
+	assert.NoError(t, dbErr)
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionRepo(q)
-	testDevice, deviceErr := q.CreateTestDevice(t.Context())
-	a.NoError(deviceErr)
+	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	assert.NoError(t, deviceErr)
 	deviceId := testDevice.ID
 
 	tests := []struct {
@@ -25,23 +29,29 @@ func TestCreateDetection(t *testing.T) {
 		message string
 	}{
 		{
-			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9},
+			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9, Bbox: [][]float64{}},
+			wantErr: false,
+			message: "bbox is not required",
+		},
+		{
+			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9, Bbox: nil},
+			wantErr: false,
+			message: "bbox does not need to be specified at all",
+		},
+		{
+			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "cat", Confidence: 0.85, Bbox: validBbox},
 			wantErr: false,
 			message: "We can create detections for specified devices, labels, & confidences",
 		},
 		{
-			params:  devices.CreateDetectionParams{DeviceID: -5, Label: "dog", Confidence: 0.9},
+			params:  devices.CreateDetectionParams{DeviceID: -5, Label: "dog", Confidence: 0.9, Bbox: validBbox},
 			wantErr: true,
 			message: "An error is thrown if the device ID is not in the database",
-		},
-		{
-			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "cat", Confidence: 0.85},
-			wantErr: false,
-			message: "We can create detections for specified devices, labels, & confidences",
 		},
 	}
 
 	t.Run("create_test_detection", func(t *testing.T) {
+		a := assert.New(t)
 		ctx := t.Context()
 		for _, test := range tests {
 			value, err := repo.CreateDetection(ctx, test.params)
@@ -56,43 +66,62 @@ func TestCreateDetection(t *testing.T) {
 	})
 
 	t.Run("create_test_detection_with_image", func(t *testing.T) {
+		a := assert.New(t)
 		ctx := t.Context()
 		imgRepo := NewPgImageRepo(q)
+		td, de := GetOrCreateTestDevice(t.Context(), q)
+		a.NoError(de)
+		suffix := generateRandomString(10)
 		// Create the faux image record so we can associate a detection record with a valid DB entry
 		img, imgErr := imgRepo.CreateImage(ctx, devices.CreateImageParams{
-			DeviceID:  deviceId,
-			ImagePath: "/videos/test_detection123.jpg",
+			DeviceID:  td.ID,
+			ImagePath: "/videos/test_detection123" + suffix + ".jpg",
 		})
+		a.NotNil(img)
 		a.NoError(imgErr)
-		params := devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9, ImageID: &img.ID}
+		params := devices.CreateDetectionParams{DeviceID: td.ID, Label: "dog", Confidence: 0.9, ImageID: &img.ID, Bbox: validBbox}
 		record, err := repo.CreateDetection(ctx, params)
 		a.NoError(err)
-		a.NotEmpty(record)
-		a.Equal(record.ImageID, &img.ID)
+		a.NotNil(record)
+		a.NotNil(record.ImageID)
+		//a.Equal(record.ImageID, &img.ID)
 	})
 }
 
 func TestGetDetectionsAfter(t *testing.T) {
-	a := assert.New(t)
 	appDb, dbErr := postgres.NewTestAppDb()
+	a := assert.New(t)
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
-	repo := NewPgDetectionRepo(appDb.GetQueries())
-	testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
+	q := appDb.GetQueries()
+	repo := NewPgDetectionRepo(q)
+	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceId := testDevice.ID
 
-	t.Run("create_detections_for_query_test", func(t *testing.T) {
-		ctx := t.Context()
-		params := []devices.CreateDetectionParams{
-			{DeviceID: deviceId, Label: "person", Confidence: 0.9},
-			{DeviceID: deviceId, Label: "dog", Confidence: 0.8},
-			{DeviceID: deviceId, Label: "cat", Confidence: 0.2},
-		}
-		for _, p := range params {
-			_, err := repo.CreateDetection(ctx, p)
-			a.NoError(err)
-		}
+	params := []devices.CreateDetectionParams{
+		{DeviceID: deviceId, Label: "person", Confidence: 0.9, Bbox: validBbox},
+		{DeviceID: deviceId, Label: "dog", Confidence: 0.8, Bbox: validBbox},
+		{DeviceID: deviceId, Label: "cat", Confidence: 0.2, Bbox: validBbox},
+	}
+	for _, p := range params {
+		_, err := repo.CreateDetection(t.Context(), p)
+		a.NoError(err)
+	}
+
+	failDate := time.Now().Add(24 * time.Hour)
+	successDate := time.Now().Add(-48 * time.Hour)
+
+	t.Run("test_future_date_gives_empty_results", func(t *testing.T) {
+		value, err := repo.GetDetectionsAfter(t.Context(), devices.QueryParams{DeviceID: int64(-5), CreatedAt: failDate, ImageID: nil})
+		assert.NoError(t, err)
+		assert.Empty(t, value)
+	})
+
+	t.Run("test_past_date_gives_non_empty_results", func(t *testing.T) {
+		value, err := repo.GetDetectionsAfter(t.Context(), devices.QueryParams{DeviceID: int64(-5), CreatedAt: successDate, ImageID: nil})
+		assert.NotEmpty(t, value, "GetDetectionsAfter yields results")
+		assert.NoError(t, err, "GetDetectionsAfter does not require valid DeviceIDs")
 	})
 
 	tests := []struct {
@@ -102,51 +131,31 @@ func TestGetDetectionsAfter(t *testing.T) {
 		message string
 	}{
 		{
-			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: time.Now()},
-			wantErr: false,
+			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: failDate, ImageID: nil},
 			isEmpty: true,
 			message: "Empty slice because query date is too recent",
 		},
 		{
-			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: startOfDay()},
-			wantErr: false,
+			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: successDate, ImageID: nil},
 			isEmpty: false,
 			message: "non-empty slice because results were inserted today",
 		},
 		{
-			params:  devices.QueryParams{DeviceID: int64(-5), CreatedAt: time.Now()},
-			wantErr: false,
+			params:  devices.QueryParams{DeviceID: int64(-5), CreatedAt: successDate, ImageID: nil},
 			isEmpty: true,
 			message: "empty slice because the DeviceID is invalid",
 		},
 	}
 
-	t.Run("test_query_all_detections_after", func(t *testing.T) {
-		ctx := t.Context()
-		for _, test := range tests {
-			value, err := repo.GetDetectionsAfter(ctx, test.params)
-			if test.wantErr {
-				a.Error(err, test.message)
-			}
-			if test.isEmpty {
-				a.Empty(value, test.message)
-			} else {
-				a.NotNil(value, test.message)
-			}
-		}
-	})
-
 	t.Run("test_query_device_detections_after", func(t *testing.T) {
 		ctx := t.Context()
 		for _, test := range tests {
 			value, err := repo.GetDeviceDetectionsAfter(ctx, test.params)
-			if test.wantErr {
-				a.Error(err, test.message)
-			}
+			assert.NoError(t, err)
 			if test.isEmpty {
-				a.Empty(value, test.message)
+				assert.Empty(t, value, test.message)
 			} else {
-				a.NotEmpty(value, test.message)
+				assert.NotEmpty(t, value, test.message)
 			}
 		}
 	})

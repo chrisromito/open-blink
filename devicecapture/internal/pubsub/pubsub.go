@@ -1,9 +1,9 @@
 package pubsub
 
 import (
+	"devicecapture/internal/logger"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"log"
 )
 
 func BrokerHelper(cId, broker, user, password string) (MqttClient, error) {
@@ -16,8 +16,8 @@ func BrokerHelper(cId, broker, user, password string) (MqttClient, error) {
 			return c, nil
 		}
 
-		log.Printf("Error connecting to broker: %s", b)
-		log.Printf("Error: %v", err)
+		logger.Debug().Msgf("Error connecting to broker: %s", b)
+		logger.Debug().Msgf("Error: %v", err)
 		// Return the error if this is the last broker
 		if b == urls[len(urls)-1] {
 			return c, err
@@ -80,12 +80,12 @@ func (m *MqttClient) PublishImage(img []byte, deviceId string) error {
 		return fmt.Errorf("client not connected")
 	}
 	topic := fmt.Sprintf("image/%s", deviceId)
-	log.Printf("Publishing image to topic: %s", topic)
+	logger.Debug().Msgf("Publishing image to topic: %s", topic)
 	err := m.Publish(topic, img)
 	if err != nil {
 		return err
 	}
-	log.Printf("Published image to topic: %s", topic)
+	logger.Debug().Msgf("Published image to topic: %s", topic)
 	return nil
 }
 
@@ -103,16 +103,19 @@ func (m *MqttClient) Connect() error {
 	if m.opts.Password != "" {
 		mqOptions.SetPassword(m.opts.Password)
 	}
-	log.Printf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
+	mqOptions.OnConnectionLost = func(c mqtt.Client, err error) {
+		panic(err)
+	}
+	logger.Debug().Msgf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
 	mClient := mqtt.NewClient(mqOptions)
 	// We have to create the connection to the broker manually and verify that there is no error.
 	if token := mClient.Connect(); token.Wait() && token.Error() != nil {
-		log.Printf("MqttClient: Error connecting to broker: %s", m.opts.Broker)
+		logger.Error().Msgf("MqttClient: Error connecting to broker: %s", m.opts.Broker)
 		err := token.Error()
-		log.Printf("MqttClient: Error: %v", err)
+		logger.Error().Msgf("MqttClient: Error: %v", err)
 		return err
 	}
-	log.Printf("MqttClient: Connected to broker: %s", m.opts.Broker)
+	logger.Debug().Msgf("MqttClient: Connected to broker: %s", m.opts.Broker)
 	m.Client = mClient
 	return nil
 }
@@ -130,7 +133,7 @@ func (m *MqttClient) Publish(topic string, payload interface{}) error {
 
 // Subscribe creates a subscription for the passed topic. The callBack function is used to process any messages that the client receives on that topic. The subscription created will have a QOS of 1.
 func (m *MqttClient) Subscribe(topic string, f mqtt.MessageHandler) error {
-	if token := m.Client.Subscribe(topic, 1, f); token.Wait() && token.Error() != nil {
+	if token := m.Client.Subscribe(topic, 2, f); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	m.topics = append(m.topics, topic)

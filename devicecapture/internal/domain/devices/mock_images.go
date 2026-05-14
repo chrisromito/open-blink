@@ -8,28 +8,28 @@ import (
 )
 
 type MockImage struct {
-	ds []*DeviceImage
+	ds []DeviceImage
 	mu sync.Mutex
 }
 
 func NewMockImageRepo() *MockImage {
 	return &MockImage{
-		ds: []*DeviceImage{},
+		ds: []DeviceImage{},
 		mu: sync.Mutex{},
 	}
 }
 
-func (ir *MockImage) CreateImage(ctx context.Context, params CreateImageParams) (*DeviceImage, error) {
+func (ir *MockImage) CreateImage(_ context.Context, params CreateImageParams) (DeviceImage, error) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 	if params.DeviceID < 0 {
-		return &DeviceImage{}, errors.New("invalid device ID")
+		return DeviceImage{}, errors.New("invalid device ID")
 	}
 	if params.ImagePath == "" || len(params.ImagePath) > 255 {
-		return &DeviceImage{}, errors.New("invalid image path")
+		return DeviceImage{}, errors.New("invalid image path")
 	}
 
-	img := &DeviceImage{
+	img := DeviceImage{
 		ID:        int64(len(ir.ds) + 1),
 		DeviceID:  params.DeviceID,
 		CreatedAt: time.Now(),
@@ -39,10 +39,10 @@ func (ir *MockImage) CreateImage(ctx context.Context, params CreateImageParams) 
 	return img, nil
 }
 
-func (ir *MockImage) GetImages(ctx context.Context, deviceId int64) ([]*DeviceImage, error) {
+func (ir *MockImage) GetImages(_ context.Context, deviceId int64) ([]DeviceImage, error) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
-	var imgs []*DeviceImage
+	var imgs []DeviceImage
 	for _, img := range ir.ds {
 		if img.DeviceID == deviceId {
 			imgs = append(imgs, img)

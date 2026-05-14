@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"devicecapture/internal/app"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/pubsub"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -21,11 +21,11 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 	// See example: https://pkg.go.dev/github.com/coder/websocket#example-package-WriteOnly
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		log.Print("ws /detections")
+		logger.Debug().Msg("ws /detections")
 		// Setup websocket stuff
 		c, err := websocket.Accept(w, r, &wsOpts)
 		if err != nil {
-			log.Println(err)
+			logger.Error().Err(err).Send()
 			return
 		}
 		defer c.CloseNow()
@@ -52,15 +52,15 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		go func() {
 			defer wg.Done()
 			err = qtClient.Subscribe("detection/#", func(client mqtt.Client, msg mqtt.Message) {
-				log.Printf("detection msg received, passing to websocket client")
+				logger.Error().Msgf("detection msg received, passing to websocket client")
 				wsErr := wsjson.Write(ctx, c, string(msg.Payload()))
 				if wsErr != nil {
-					log.Printf("error writing to WS client: %v", wsErr)
+					logger.Error().Msgf("error writing to WS client: %v", wsErr)
 					return
 				}
 			})
 			if err != nil {
-				log.Printf("mqttClient subscribe error: %v", err)
+				logger.Error().Msgf("mqttClient subscribe error: %v", err)
 				return
 			}
 			<-ctx.Done()
@@ -68,7 +68,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		wg.Wait()
 		closeErr := c.Close(websocket.StatusNormalClosure, "")
 		if closeErr != nil {
-			log.Printf("ws close error: %v", closeErr)
+			logger.Error().Msgf("ws close error: %v", closeErr)
 		}
 	}
 }
