@@ -47,6 +47,7 @@ func main() {
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
+		repos.NewPgDetectionHistoryRepo(queries, conf),
 	)
 
 	//-- App

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Stream Monitor</title>
+    <style>
+        /* Responsive CSS */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0f1115;
+            /*color: #f5f7fa;*/
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            /*background-color: #1a1a1a;*/
+            color: #eeeeee;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .detections-page {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* FILTERS */
+
+        .filters {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 220px;
+        }
+
+        .filter-group label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .filter-group select {
+            background: #1a1d24;
+            color: white;
+            border: 1px solid #2c313c;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        .filter-group small {
+            color: #8b93a7;
+            font-size: 12px;
+        }
+
+        /* FEED */
+
+        .detections-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* CARD */
+
+        .detection-card {
+            display: flex;
+            gap: 16px;
+            background: #171a21;
+            border: 1px solid #2a2f3a;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .detection-image {
+            width: 260px;
+            height: 160px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .detection-content {
+            flex: 1;
+            padding: 16px 16px 16px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .detection-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .labels {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            background: #253041;
+            color: #8ec5ff;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        time {
+            color: #9aa3b2;
+            font-size: 13px;
+        }
+
+        .detection-meta {
+            color: #b5bece;
+            font-size: 14px;
+        }
+
+        /* MOBILE */
+
+        @media (max-width: 700px) {
+            .detection-card {
+                flex-direction: column;
+            }
+
+            .detection-image {
+                width: 100%;
+                height: 220px;
+            }
+
+            .detection-content {
+                padding: 0 16px 16px;
+            }
+
+            .detection-top {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+
+        header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .device-grid {
+            display: grid;
+            gap: 20px;
+            /* Auto-fitting grid: cells are at least 300px, but grow to fill space */
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        }
+
+        .status-msg {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+        }
+
+        .row {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .flex { display: flex; }
+        .i-flex { display: inline-flex; }
+        .align-center {  align-content: center; }
+        .justify-start { justify-content: flex-start; }
+        .justify-center { justify-content: center;}
+        .wrap { flex-wrap: wrap;}
+        .nowrap { flex-wrap: nowrap;}
+        .hide { display: none !important;}
+        .p-1 { padding: 1rem; }
+        .p-2 { padding: 2rem; }
+        .space-around { justify-content: space-around; }
+        .space-between { justify-content: space-between; }
+        .space-evenly { justify-content: space-evenly;}
+        
+    /*    SELECT */
+        .select {
+            width: 100%;
+            min-height: 56px;
+            padding: 16px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.23);
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.09);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 16px;
+            color: #ffffff;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .select:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background-color: rgba(255, 255, 255, 0.13);
+        }
+
+        .select:focus {
+            border-color: #90caf9;
+            border-width: 2px;
+            background-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.3);
+        }
+
+        .select option {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            padding: 12px 16px;
+            border: none;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .select option:checked {
+            background-color: #1976d2;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .select option:hover {
+            background-color: #404040;
+        }
+
+        /* Label styling to match Material Design */
+        label[for="label-select"] {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .select:focus + label,
+        .select:focus-within + label {
+            color: #90caf9;
+        }
+
+        /* Container for a more polished look */
+        .select-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .select-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #90caf9, transparent);
+            opacity: 0;
+            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .select-container:focus-within::after {
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Recent Detections</h1>
+</header>
+
+<main class="device-grid flex row">
+    <!-- Filter Form -->
+    <div id="filter-form" class="row filter-form flex space-between">
+        <div class="select-container p-2">
+            <label for="label-select">Labels</label>
+            <select id="label-select" multiple name="labels" class="select" size="3"></select>
+        </div>
+        <div class="select-container p-2">
+            <label for="device-select">Devices</label>
+            <select id="device-select" class="select"></select>
+        </div>
+    </div>
+</main>
+<div id="detection-feed" class="detections-feed row">
+    <div id="detection-message" class="detection-pending">Loading Recent Detections...</div>
+</div>
+
+<script>
+    const filterForm = document.getElementById('filter-form')
+    const labelSelect = document.getElementById('label-select')
+    const deviceSelect = document.getElementById('device-select')
+    const detectionFeed = document.getElementById('detection-feed')
+    const detectionMessage = document.getElementById('detection-message')
+
+    /**
+     * Logic to fetch devices and render the MJPEG streams
+     */
+    async function initDashboard() {
+        await Promise.all([
+            initDeviceSelect(),
+            initLabelSelect()
+        ])
+        labelSelect.addEventListener('change', handleFilterChange)
+        deviceSelect.addEventListener('change', handleFilterChange)
+    }
+
+    async function handleFilterChange(e) {
+        detectionFeed.innerHTML = '<div id="detection-message" class="detection-pending">Loading Recent Detections...</div>'
+        const deviceParam = deviceSelect.value
+        const labelParam = [...labelSelect.selectedOptions].map(opt => opt.value)
+        const fetchUrl = new URL('/api/detection-images', window.location.origin)
+        if (labelParam.length) {
+            labelParam.forEach(label => fetchUrl.searchParams.append('label', label))
+        }
+        if (deviceParam.length) {
+            fetchUrl.searchParams.set('device_id', deviceParam)
+        }
+        try {
+            const detections = await fetch(fetchUrl, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(resp => resp.json())
+            detectionFeed.innerHTML = detections.map(DetectionCard).join('')
+        } catch(error) {
+            detectionFeed.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`
+            console.error(error)
+        }
+    }
+
+    async function initLabelSelect() {
+        try {
+            const response = await fetch('/api/labels', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            const labels = await response.json()
+            labelSelect.innerHTML = labels.toSorted().reduce((accum, label)=> {
+                return accum + `<option value="${label}">${label}</option>`
+            }, '')
+
+        } catch (error) {
+            console.error("Failed to load recent labels:", error)
+            labelSelect.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`
+        }
+    }
+
+    async function initDeviceSelect() {
+        try {
+            const response = await fetch('/api/device', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            const devices = await response.json()
+            deviceSelect.innerHTML = devices.reduce((accum, device)=> {
+                return accum + `<option value="${device.id}">${device.name}</option>`
+            }, '')
+            return devices
+        } catch (error) {
+            console.error("Failed to load devices:", error)
+            deviceSelect.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`
+        }
+    }
+
+
+    function DetectionCard(detection) {
+        const { id, image_url, created_at, label, confidence, bbox, device_id } = detection
+        const date = new Date(created_at)
+        return `
+            <article data-detection-id="${id}" class="detection-card">
+                <img
+                    class="detection-image"
+                    src="${image_url}"
+                    alt="Detection image from ${created_at}"
+                />
+                <div class="detection-content">
+                    <div class="detection-top">
+                        <div class="labels">
+                            <span class="chip">${label}</span>
+                        </div>
+                        <time>${date.toLocaleTimeString()}</time>
+                    </div>
+                    <div class="detection-meta">
+                        • ${parseInt(String(confidence * 100))}% confidence
+                    </div>
+                </div>
+            </article>
+        `
+    }
+
+
+    function show(el) {
+        el.classList.remove('hide')
+    }
+
+    function hide(el) {
+        el.classList.add('hide')
+    }
+
+    // Run on load
+    window.addEventListener('DOMContentLoaded', initDashboard)
+</script>
+</body>
+</html>
