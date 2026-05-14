@@ -147,7 +147,7 @@
     async function initDeviceGrid() {
         const grid = document.getElementById('device-grid')
         try {
-            const response = await fetch('/device', {
+            const response = await fetch('/api/device', {
                 headers: {
                     'Content-Type': 'application/json'
                 }
