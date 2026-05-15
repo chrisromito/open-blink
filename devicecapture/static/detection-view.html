@@ -9,7 +9,6 @@
         * {
             box-sizing: border-box;
         }
-
         body {
             background: #0f1115;
             /*color: #f5f7fa;*/
@@ -19,49 +18,42 @@
             margin: 0;
             padding: 2rem;
         }
-
         .detections-page {
             max-width: 1200px;
             margin: 0 auto;
         }
 
         /* FILTERS */
-
         .filters {
             display: flex;
             gap: 16px;
             margin-bottom: 24px;
             flex-wrap: wrap;
         }
-
         .filter-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
             min-width: 220px;
         }
-
         .filter-group label {
-            font-size: 14px;
+            font-size: 1.2rem;
             font-weight: 600;
         }
-
         .filter-group select {
             background: #1a1d24;
             color: white;
             border: 1px solid #2c313c;
             border-radius: 10px;
             padding: 10px 12px;
-            font-size: 14px;
+            font-size: 1.2rem;
         }
-
         .filter-group small {
             color: #8b93a7;
-            font-size: 12px;
+            font-size: 1rem;
         }
 
         /* FEED */
-
         .detections-feed {
             display: flex;
             flex-direction: column;
@@ -69,7 +61,6 @@
         }
 
         /* CARD */
-
         .detection-card {
             display: flex;
             gap: 16px;
@@ -78,14 +69,15 @@
             border-radius: 16px;
             overflow: hidden;
         }
-
         .detection-image {
-            width: 260px;
-            height: 160px;
+            /*width: 260px;*/
+            width: auto;
+            max-width: 100%;
+            height: 250px;
+            max-height: 100%;
             object-fit: cover;
             flex-shrink: 0;
         }
-
         .detection-content {
             flex: 1;
             padding: 16px 16px 16px 0;
@@ -93,59 +85,51 @@
             flex-direction: column;
             justify-content: center;
         }
-
         .detection-top {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             margin-bottom: 12px;
         }
-
         .labels {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
         }
-
         .chip {
             background: #253041;
             color: #8ec5ff;
-            padding: 6px 10px;
+            padding: 0.6rem 0.8rem;
             border-radius: 999px;
-            font-size: 12px;
+            font-size: 1rem;
             font-weight: 600;
         }
-
         time {
             color: #9aa3b2;
-            font-size: 13px;
+            font-size: 1.2rem;
         }
-
         .detection-meta {
             color: #b5bece;
-            font-size: 14px;
+            font-size: 1.2rem;
         }
-
         /* MOBILE */
-
         @media (max-width: 700px) {
             .detection-card {
                 flex-direction: column;
             }
-
             .detection-image {
                 width: 100%;
                 height: 220px;
             }
-
             .detection-content {
                 padding: 0 16px 16px;
             }
-
             .detection-top {
-                flex-direction: column;
                 align-items: flex-start;
                 gap: 10px;
+            }
+            .hide-mobile {
+                display: none !important;
             }
         }
 
@@ -153,20 +137,17 @@
             margin-bottom: 30px;
             text-align: center;
         }
-
         .device-grid {
             display: grid;
             gap: 20px;
             /* Auto-fitting grid: cells are at least 300px, but grow to fill space */
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
-
         .status-msg {
             padding: 20px;
             text-align: center;
             color: #888;
         }
-
         .row {
             width: 100%;
             max-width: 100%;
@@ -182,6 +163,10 @@
         .hide { display: none !important;}
         .p-1 { padding: 1rem; }
         .p-2 { padding: 2rem; }
+        .pt-1 { padding-top: 1rem;}
+        .pl-1 { padding-left: 1rem;}
+        .py-1 { padding-top: 1rem; padding-bottom: 1rem; }
+        .px-1 { padding-left: 1rem; padding-right: 1rem; }
         .space-around { justify-content: space-around; }
         .space-between { justify-content: space-between; }
         .space-evenly { justify-content: space-evenly;}
@@ -195,67 +180,58 @@
             border-radius: 4px;
             background-color: rgba(255, 255, 255, 0.09);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 16px;
+            font-size: 1.2rem;
             color: #ffffff;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             outline: none;
             backdrop-filter: blur(10px);
         }
-
         .select:hover {
             border-color: rgba(255, 255, 255, 0.4);
             background-color: rgba(255, 255, 255, 0.13);
         }
-
         .select:focus {
             border-color: #90caf9;
             border-width: 2px;
             background-color: rgba(255, 255, 255, 0.16);
             box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.3);
         }
-
         .select option {
             background-color: #2d2d2d;
             color: #ffffff;
             padding: 12px 16px;
             border: none;
-            font-size: 14px;
+            font-size: 1.1rem;
             line-height: 1.5;
         }
-
         .select option:checked {
             background-color: #1976d2;
             color: #ffffff;
             font-weight: 500;
         }
-
         .select option:hover {
             background-color: #404040;
         }
-
         /* Label styling to match Material Design */
         label[for="label-select"] {
             display: block;
             margin-bottom: 8px;
             font-weight: 400;
             color: rgba(255, 255, 255, 0.7);
-            font-size: 12px;
+            font-size: 1rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
         .select:focus + label,
         .select:focus-within + label {
             color: #90caf9;
         }
-
         /* Container for a more polished look */
         .select-container {
             position: relative;
             margin-bottom: 24px;
         }
-
         .select-container::after {
             content: '';
             position: absolute;
@@ -267,11 +243,59 @@
             opacity: 0;
             transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
         .select-container:focus-within::after {
             opacity: 1;
         }
-
+        /* Checkboxes */
+        .checkbox-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #1a1d24;
+            border: 1px solid #2c313c;
+            border-radius: 10px;
+            padding: 10px 12px;
+            cursor: pointer;
+            user-select: none;
+            transition:
+                    border-color 0.15s ease,
+                    background 0.15s ease;
+        }
+        .checkbox-item:hover {
+            border-color: #4c78ff;
+            background: #202530;
+        }
+        .checkbox-item input {
+            margin: 0;
+            accent-color: #4c78ff;
+        }
+        .checkbox-item span {
+            font-size: 1.1rem;
+        }
+        /*  Progress Bar  */
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #222834;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            width: var(--progress);
+            height: 100%;
+            background: linear-gradient(
+                    90deg,
+                    #4c78ff,
+                    #67e8f9
+            );
+            border-radius: inherit;
+            transition: width 0.25s ease;
+        }
     </style>
 </head>
 <body>
@@ -282,12 +306,22 @@
 
 <main class="device-grid flex row">
     <!-- Filter Form -->
-    <div id="filter-form" class="row filter-form flex space-between">
+    <div id="filter-form" class="row filter-form flex space-around wrap">
         <div class="select-container p-2">
-            <label for="label-select">Labels</label>
-            <select id="label-select" multiple name="labels" class="select" size="3"></select>
+            <div class="filter-group">
+                <label>Labels</label>
+
+                <div id="label-checkboxes" class="checkbox-list">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="labels" value="Person" />
+                        <span>Person</span>
+                    </label>
+                </div>
+
+                <small>Pick up to 3</small>
+            </div>
         </div>
-        <div class="select-container p-2">
+        <div class="select-container p-2 hide-mobile">
             <label for="device-select">Devices</label>
             <select id="device-select" class="select"></select>
         </div>
@@ -299,10 +333,10 @@
 
 <script>
     const filterForm = document.getElementById('filter-form')
-    const labelSelect = document.getElementById('label-select')
     const deviceSelect = document.getElementById('device-select')
     const detectionFeed = document.getElementById('detection-feed')
     const detectionMessage = document.getElementById('detection-message')
+    const labelCheckboxes = document.getElementById('label-checkboxes')
 
     /**
      * Logic to fetch devices and render the MJPEG streams
@@ -312,14 +346,15 @@
             initDeviceSelect(),
             initLabelSelect()
         ])
-        labelSelect.addEventListener('change', handleFilterChange)
         deviceSelect.addEventListener('change', handleFilterChange)
+        labelCheckboxes.addEventListener('change', handleFilterChange, true)
+        requestAnimationFrame(()=> handleFilterChange())
     }
 
     async function handleFilterChange(e) {
         detectionFeed.innerHTML = '<div id="detection-message" class="detection-pending">Loading Recent Detections...</div>'
         const deviceParam = deviceSelect.value
-        const labelParam = [...labelSelect.selectedOptions].map(opt => opt.value)
+        const labelParam = getSelectedLabels()
         const fetchUrl = new URL('/api/detection-images', window.location.origin)
         if (labelParam.length) {
             labelParam.forEach(label => fetchUrl.searchParams.append('label', label))
@@ -340,6 +375,10 @@
         }
     }
 
+    function getSelectedLabels() {
+        return [...labelCheckboxes.querySelectorAll('input[type="checkbox"]:checked')].map(inp => inp.value)
+    }
+
     async function initLabelSelect() {
         try {
             const response = await fetch('/api/labels', {
@@ -351,14 +390,19 @@
                 throw new Error(`HTTP error! status: ${response.status}`)
             }
             const labels = await response.json()
-            labelSelect.innerHTML = labels.toSorted().reduce((accum, label)=> {
-                return accum + `<option value="${label}">${label}</option>`
-            }, '')
-
+            labelCheckboxes.innerHTML = labels.toSorted().map(LabelOption).join('')
         } catch (error) {
             console.error("Failed to load recent labels:", error)
             labelSelect.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`
         }
+    }
+
+
+    function LabelOption(label) {
+        return `<label class="checkbox-item">
+            <input type="checkbox" name="labels" value="${label}" />
+            <span>${label}</span>
+        </label>`
     }
 
     async function initDeviceSelect() {
@@ -398,10 +442,15 @@
                         <div class="labels">
                             <span class="chip">${label}</span>
                         </div>
-                        <time>${date.toLocaleTimeString()}</time>
+                        <div class="row p-1">
+                            <div class="progress-bar" style="--progress: ${confidence * 100}%;"><div class="progress-fill"></div></div>
+                            <div class="hide-mobile">
+                                • ${parseInt(String(confidence * 100))}% confidence
+                            </div>
+                        </div>
                     </div>
-                    <div class="detection-meta">
-                        • ${parseInt(String(confidence * 100))}% confidence
+                    <div class="row detection-meta py-1">
+                        <time datetime="${created_at}">${formatTime(date)}</time>, <time datetime="${created_at}">${formatDate(date)}</time>
                     </div>
                 </div>
             </article>
@@ -415,6 +464,26 @@
 
     function hide(el) {
         el.classList.add('hide')
+    }
+
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })
+
+    function formatDate(d) {
+        return dateFormatter.format(d)
+    }
+
+    const timeFormatter =  new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+    })
+
+    function formatTime(dt) {
+        return timeFormatter.format(dt)
     }
 
     // Run on load
