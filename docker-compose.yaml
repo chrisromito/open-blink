@@ -1,4 +1,12 @@
 services:
+  blink_detection_service:
+    container_name: blink_detection_service
+    build: ./detection_service
+    networks:
+      - openblink
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
   devicecapture:
     build:
       context: ./devicecapture
