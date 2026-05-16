@@ -15,7 +15,7 @@ FROM base AS builder
 
 WORKDIR /app
 # Install any needed packages specified in requirements.txt
-COPY requirements.txt requirements.txt
+COPY requirements.in requirements.txt
 #RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
