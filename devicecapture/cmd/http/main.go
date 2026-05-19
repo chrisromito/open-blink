@@ -63,12 +63,13 @@ func main() {
 	// Register HTTP endpoints
 	http.HandleFunc("/", server.HomePageHandler())
 	http.HandleFunc("/detection-view", server.DetectionViewHandler())
-	http.HandleFunc("/api/device", server.DeviceListHandler(a))
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
 	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))
 	http.HandleFunc("/detection-stream", server.DetectionStreamHandler(a))
-	http.HandleFunc("/api/labels", server.GetRecentLabelsHandler(a))
-	http.HandleFunc("/api/detection-images", server.GetDetectionImagesByLabelHandler(a))
+	// API Endpoints
+	http.HandleFunc("/api/device", server.DeviceListHandler(a))
+	http.HandleFunc("/api/label", server.GetRecentLabelsHandler(a))
+	http.HandleFunc("/api/detection-image", server.GetDetectionImagesByLabelHandler(a))
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))

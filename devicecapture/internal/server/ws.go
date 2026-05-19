@@ -53,7 +53,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = qtClient.Subscribe("detection/#", func(client mqtt.Client, msg mqtt.Message) {
+			err = qtClient.Subscribe("detections/#", func(client mqtt.Client, msg mqtt.Message) {
 				logger.Error().Msgf("detection msg received, passing to websocket client")
 				wsErr := wsjson.Write(ctx, c, string(msg.Payload()))
 				if wsErr != nil {
