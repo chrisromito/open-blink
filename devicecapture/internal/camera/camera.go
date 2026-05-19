@@ -210,7 +210,8 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 		// We have >= 1 detection, store them in the DB & broadcast to MQTT
 		logger.Debug().Msgf("\n\nCameraService: writing detections: %v", detections)
 		// Loop, transpose items, and write to the repo
-		topic := "detection/" + strconv.Itoa(int(deviceId))
+		//topic := "detection/" + strconv.Itoa(int(deviceId))
+		topic := "detections/" + strconv.Itoa(int(deviceId))
 		var pgDetections []devices.CreateDetectionParams
 		// Set up the slice of DB params
 		for _, d := range detections {
@@ -222,24 +223,38 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 			logger.Error().Msgf("error writing detections to detection repo %v", err)
 			return
 		}
-		// Loop through, publish each detection
 		thisIp := s.Config.ThisIp
-		for _, d := range toPublish {
-			payload, jsonErr := receiver.DetectionToMsg(thisIp, framePath, d)
-			//payload, jsonErr := json.Marshal(d)
-			if jsonErr != nil {
-				logger.Error().Msgf("error marshalling %v to JSON: %v", d, jsonErr)
-				return
-			}
-			// publish successful detections
-			qtErr := s.mqttClient.Publish(topic, payload)
-			if qtErr != nil {
-				logger.Error().Msgf("error publishing %v: %v", payload, qtErr)
-				return
-			} else {
-				logger.Info().Msgf("published %v to %s", payload, topic)
-			}
+		// Publish batch to MQTT
+		p, jErr := receiver.DetectionsToMsg(thisIp, imageRecord, toPublish)
+		if jErr != nil {
+			logger.Error().Str("service", "camera").
+				Err(jErr).Send()
+			return
 		}
+		qtErr := s.mqttClient.Publish(topic, p)
+		if qtErr != nil {
+			logger.Error().Str("service", "camera").Str("thing", "mqttPublish").
+				Err(qtErr).Send()
+			return
+		}
+
+		// Loop through, publish each detection
+		//for _, d := range toPublish {
+		//	payload, jsonErr := receiver.DetectionToMsg(thisIp, framePath, d)
+		//	//payload, jsonErr := json.Marshal(d)
+		//	if jsonErr != nil {
+		//		logger.Error().Msgf("error marshalling %v to JSON: %v", d, jsonErr)
+		//		return
+		//	}
+		//	// publish successful detections
+		//	qtErr := s.mqttClient.Publish(topic, payload)
+		//	if qtErr != nil {
+		//		logger.Error().Msgf("error publishing %v: %v", payload, qtErr)
+		//		return
+		//	} else {
+		//		logger.Info().Msgf("published %v to %s", payload, topic)
+		//	}
+		//}
 		return
 	}()
 
