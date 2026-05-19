@@ -13,6 +13,7 @@ import (
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"sync"
@@ -71,7 +72,7 @@ func main() {
 			case <-appCtx.Done():
 				return
 			default:
-				err := loop(appCtx, a)
+				err := loopGroup(appCtx, a)
 				if err != nil {
 					return
 				}
@@ -122,4 +123,31 @@ func loop(ctx context.Context, a *app.App) error {
 	// Wait until we grab images and detections for all devices
 	wg.Wait()
 	return nil
+}
+
+func loopGroup(ctx context.Context, a *app.App) error {
+	logger.Debug().Str("fn", "main.loop").Msg("begin...")
+	deviceRepo := a.AppDeps.DeviceRepo
+	deviceList, rErr := deviceRepo.ListDevices(ctx)
+	if rErr != nil {
+		return rErr
+	}
+	cs := camera.NewCameraService(
+		a.Conf,
+		a.AppDeps,
+		detection.NewObjectDetectionService(a.Conf),
+		a.MqttClient,
+	)
+	g, ctx := errgroup.WithContext(ctx)
+	for _, device := range deviceList {
+		g.Go(func() error {
+			err := cs.Snapshot(ctx, device)
+			if err != nil {
+				logger.Error().Str("fn", "main.loop").
+					Msgf("error %v", err)
+			}
+			return err
+		})
+	}
+	return g.Wait()
 }

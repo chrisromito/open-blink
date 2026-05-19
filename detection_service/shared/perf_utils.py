@@ -18,6 +18,6 @@ def block_timer(message: str, log_fn=logger.debug):
     def end_timer():
         end = time.time()
         diff = end - start
-        log_fn(f'{message}: {diff:.6f}s')
+        log_fn(f"{message}: {diff:.6f}s")
 
     return end_timer

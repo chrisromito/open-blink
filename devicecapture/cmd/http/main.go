@@ -19,6 +19,7 @@ import (
 	"devicecapture/internal/server"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,7 +29,7 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-deviceserver", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper("go-deviceserver-"+uuid.New().String(), conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		logger.Fatal().Msgf("Error creating MQTT client: %v", cerr)
 	}
