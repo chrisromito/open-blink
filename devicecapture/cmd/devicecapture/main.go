@@ -7,15 +7,14 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
-	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/pubsub"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -47,6 +46,7 @@ func main() {
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
+		repos.NewPgDetectionHistoryRepo(queries, conf),
 	)
 
 	//-- App
@@ -70,7 +70,7 @@ func main() {
 			case <-appCtx.Done():
 				return
 			default:
-				err := loop(appCtx, a)
+				err := loopGroup(appCtx, a)
 				if err != nil {
 					return
 				}
@@ -90,7 +90,40 @@ func main() {
 	}
 }
 
-func loop(ctx context.Context, a *app.App) error {
+//func loop(ctx context.Context, a *app.App) error {
+//	logger.Debug().Str("fn", "main.loop").Msg("begin...")
+//	deviceRepo := a.AppDeps.DeviceRepo
+//	deviceList, rErr := deviceRepo.ListDevices(ctx)
+//	if rErr != nil {
+//		return rErr
+//	}
+//	cs := camera.NewCameraService(
+//		a.Conf,
+//		a.AppDeps,
+//		detection.NewObjectDetectionService(a.Conf),
+//		a.MqttClient,
+//	)
+//	var wg sync.WaitGroup
+//	// Call "Snapshot" for each device
+//	for _, device := range deviceList {
+//		wg.Add(1)
+//		go func(d devices.Device) {
+//			defer wg.Done()
+//			logger.Info().Str("fn", "main.loop").
+//				Msgf("getting snapshot from device %d", device.ID)
+//			err := cs.Snapshot(ctx, device)
+//			if err != nil {
+//				logger.Error().Str("fn", "main.loop").
+//					Msgf("error %v", err)
+//			}
+//		}(device)
+//	}
+//	// Wait until we grab images and detections for all devices
+//	wg.Wait()
+//	return nil
+//}
+
+func loopGroup(ctx context.Context, a *app.App) error {
 	logger.Debug().Str("fn", "main.loop").Msg("begin...")
 	deviceRepo := a.AppDeps.DeviceRepo
 	deviceList, rErr := deviceRepo.ListDevices(ctx)
@@ -103,22 +136,16 @@ func loop(ctx context.Context, a *app.App) error {
 		detection.NewObjectDetectionService(a.Conf),
 		a.MqttClient,
 	)
-	var wg sync.WaitGroup
-	// Call "Snapshot" for each device
+	g, ctx := errgroup.WithContext(ctx)
 	for _, device := range deviceList {
-		wg.Add(1)
-		go func(d devices.Device) {
-			defer wg.Done()
-			logger.Info().Str("fn", "main.loop").
-				Msgf("getting snapshot from device %d", device.ID)
+		g.Go(func() error {
 			err := cs.Snapshot(ctx, device)
 			if err != nil {
 				logger.Error().Str("fn", "main.loop").
 					Msgf("error %v", err)
 			}
-		}(device)
+			return err
+		})
 	}
-	// Wait until we grab images and detections for all devices
-	wg.Wait()
-	return nil
+	return g.Wait()
 }
