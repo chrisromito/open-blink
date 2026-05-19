@@ -17,24 +17,30 @@ func Test_Pg_History_Repo(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionRepo(q)
-	//testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
 	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
+	imageRepo := NewPgImageRepo(q)
+	testImage, iErr := imageRepo.CreateImage(t.Context(), devices.CreateImageParams{
+		DeviceID:  testDevice.ID,
+		ImagePath: "/videos" + generateRandomString(30) + "test.jpeg",
+	})
+	a.NoError(iErr)
 	params := []devices.CreateDetectionParams{
-		{DeviceID: testDevice.ID, Label: "person", Confidence: 0.5, Bbox: validBbox},
-		{DeviceID: testDevice.ID, Label: "truck", Confidence: 0.35, Bbox: validBbox},
-		{DeviceID: testDevice.ID, Label: "cat", Confidence: 0.75, Bbox: validBbox},
+		{DeviceID: testDevice.ID, Label: "person", Confidence: 0.5, Bbox: validBbox, ImageID: &testImage.ID},
+		{DeviceID: testDevice.ID, Label: "truck", Confidence: 0.35, Bbox: validBbox, ImageID: &testImage.ID},
+		{DeviceID: testDevice.ID, Label: "cat", Confidence: 0.75, Bbox: validBbox, ImageID: &testImage.ID},
 	}
 
 	for _, p := range params {
 		detect, cErr := repo.CreateDetection(t.Context(), p)
 		a.NoError(cErr)
 		a.NotEmpty(detect)
+		a.Equal(detect.ImageID, &testImage.ID, "detections point to the correct image")
 	}
 
 	t.Run("test_get_recent_labels", func(t *testing.T) {
 		a = assert.New(t)
-		historyRepo := NewPgDetectionHistoryRepo(q, getTestConfig(""))
+		historyRepo := NewPgDetectionHistoryRepo(q, getTestConfig("/videos"))
 
 		labels, err := historyRepo.GetRecentLabels(t.Context())
 		a.NoError(err)
@@ -64,7 +70,7 @@ func Test_Pg_History_Repo(t *testing.T) {
 			},
 			{
 
-				params:    history.DetectionWithImageParams{Label: []string{"person", "test"}, DeviceID: 0, CreatedAt: hourAgo},
+				params:    history.DetectionWithImageParams{Label: []string{"person", "fake"}, DeviceID: 0, CreatedAt: hourAgo},
 				wantEmpty: true,
 				message:   "label parameters are ORd",
 			},

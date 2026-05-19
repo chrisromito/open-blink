@@ -4,7 +4,7 @@
 -- name: GetRecentLabels :many
 SELECT DISTINCT(label)
 FROM detections
-WHERE created_at > NOW() - INTERVAL '7 days';
+WHERE created_at > (NOW() - INTERVAL '7 days');
 
 -- name: GetDetectionImagesByLabel :many
 SELECT detections.id,
@@ -14,8 +14,8 @@ SELECT detections.id,
        detections.bbox,
        detections.device_id,
        device_images.image_path
-FROM detections
-         JOIN device_images ON device_images.id = detections.id
+FROM device_images
+         JOIN detections ON device_images.id = detections.image_id
 WHERE label ILIKE ANY (@label::text[])
   AND (
     CASE
@@ -28,7 +28,7 @@ WHERE label ILIKE ANY (@label::text[])
     CASE
         WHEN sqlc.narg('created_at')::timestamp with time zone IS NOT NULL
             THEN detections.created_at >= sqlc.narg('created_at')
-        ELSE detections.created_at >= NOW() - INTERVAL '7 days'
+        ELSE detections.created_at >= (NOW() - INTERVAL '7 days')
         END
     )
 ORDER BY detections.created_at DESC;

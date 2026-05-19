@@ -18,8 +18,8 @@ SELECT detections.id,
        detections.bbox,
        detections.device_id,
        device_images.image_path
-FROM detections
-         JOIN device_images ON device_images.id = detections.id
+FROM device_images
+         JOIN detections ON device_images.id = detections.image_id
 WHERE label ILIKE ANY ($1::text[])
   AND (
     CASE

@@ -3,7 +3,6 @@
 FROM python:3.12-bookworm AS base
 WORKDIR /app
 
-
 # install system deps first
 RUN apt-get update && apt-get install -y \
     ffmpeg \
