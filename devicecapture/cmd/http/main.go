@@ -19,6 +19,7 @@ import (
 	"devicecapture/internal/server"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,7 +29,7 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-deviceserver", conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper("go-deviceserver-"+uuid.New().String(), conf.MqttHost, conf.MqttUser, conf.MqttPassword)
 	if cerr != nil {
 		logger.Fatal().Msgf("Error creating MQTT client: %v", cerr)
 	}
@@ -53,6 +54,7 @@ func main() {
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
+		repos.NewPgDetectionHistoryRepo(queries, conf),
 	)
 
 	//-- App
@@ -60,10 +62,13 @@ func main() {
 
 	// Register HTTP endpoints
 	http.HandleFunc("/", server.HomePageHandler())
-	http.HandleFunc("/device", server.DeviceListHandler(a))
+	http.HandleFunc("/detection-view", server.DetectionViewHandler())
+	http.HandleFunc("/api/device", server.DeviceListHandler(a))
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
 	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))
 	http.HandleFunc("/detection-stream", server.DetectionStreamHandler(a))
+	http.HandleFunc("/api/labels", server.GetRecentLabelsHandler(a))
+	http.HandleFunc("/api/detection-images", server.GetDetectionImagesByLabelHandler(a))
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))

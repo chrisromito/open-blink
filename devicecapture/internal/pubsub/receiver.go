@@ -69,7 +69,9 @@ func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) erro
 	}
 	logger.Debug().Msgf("Writing frame to file: %v at %s", frame.Timestamp, fp)
 	f, err := os.Create(fp)
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 	if err != nil {
 		logger.Error().Msgf("error writing frame to file %v @ %s", frame.Timestamp, fp)
 		return err

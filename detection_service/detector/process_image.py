@@ -1,11 +1,15 @@
 import json
 from pathlib import Path
-from typing import TypeVar
 
 from PIL import Image
 from ultralytics import YOLO
 
-from detector.detection_types import Detection, BoundingBox, BatchResult, DetectionResult
+from detector.detection_types import (
+    BatchResult,
+    BoundingBox,
+    Detection,
+    DetectionResult,
+)
 from shared.date_utils import get_epoch
 
 
@@ -19,20 +23,19 @@ class Processor:
         model = YOLO(path)
         return Processor(model)
 
-    def predict(self, image: Image, width: int = 640, height: int = 640) -> list[Detection]:
+    def predict(
+            self, image: Image, width: int = 640, height: int = 640
+    ) -> list[Detection]:
         results = self.model(image)
         return process_results(results)
 
-    def predict_batch(self, image_paths: list[str])-> BatchResult:
+    def predict_batch(self, image_paths: list[str]) -> BatchResult:
         batch: BatchResult = []
         for p in image_paths:
             img = Image.open(p)
             detections = self.predict(img)
             result = DetectionResult(
-                in_path=p,
-                image=img,
-                detections=detections,
-                timestamp=get_epoch()
+                in_path=p, image=img, detections=detections, timestamp=get_epoch()
             )
             batch.append(result)
         return batch
@@ -71,45 +74,33 @@ def process_results(result_list) -> list[Detection]:
     :param result_list:
     :return:
     """
-    parsed = flatten(
-        [
-            json.loads(result.to_json())
-            for result in result_list
-        ]
-    )
+    parsed = flatten([json.loads(result.to_json()) for result in result_list])
     detections: list[Detection] = []
     for result in parsed:
-        b = result.get('box')
-        x1, y1, x2, y2 = b.get('x1'), b.get('y1'), b.get('x2'), b.get('y2')
+        b = result.get("box")
+        x1, y1, x2, y2 = b.get("x1"), b.get("y1"), b.get("x2"), b.get("y2")
         coords = [x1, y1, x2, y2]
         if x2 <= x1 or y2 <= y1:
             print(f"Skipping {coords} detection with invalid coordinate order: {b}")
             continue
         valid_coords = [isinstance(c, float) for c in coords]
         if not all(valid_coords):
-            print(f'Skipping {coords} because one of them was not a float')
+            print(f"Skipping {coords} because one of them was not a float")
             continue
         detections.append(
             Detection(
-                confidence=result.get('confidence'),
-                label=result.get('name'),
-                bbox=BoundingBox(
-                    x1=x1,
-                    x2=x2,
-                    y1=y1,
-                    y2=y2
-                )
+                confidence=result.get("confidence"),
+                label=result.get("name"),
+                bbox=BoundingBox(x1=x1, x2=x2, y1=y1, y2=y2),
             )
         )
 
     return detections
 
 
-T = TypeVar('T')
-TList = list[T]
-
-
-def flatten(your_list: list[T | TList], accum=None) -> TList:
+def flatten[T](
+        your_list: list[T | list[T]],
+        accum: list[T | list[T]] | None = None) -> list[T]:
     temp = accum or []
     for item in your_list:
         if isinstance(item, list):

@@ -8,8 +8,28 @@ dependencies = [
     "numpy>=1.26.4",
     "opencv-contrib-python>=4.11.0.86",
     "opencv-python>=4.11.0.86",
-    "paho-mqtt>=2.1.0",
+    "python-dotenv>=1.2.2",
     "torch>=2.8.0",
     "torchvision>=0.23.0",
     "ultralytics>=8.4.33",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.13",
+]
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
 ]
