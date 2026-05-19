@@ -71,6 +71,12 @@ func Test_Pg_History_Repo(t *testing.T) {
 			{
 
 				params:    history.DetectionWithImageParams{Label: []string{"person", "fake"}, DeviceID: 0, CreatedAt: hourAgo},
+				wantEmpty: false,
+				message:   "label parameters are ORd",
+			},
+			{
+
+				params:    history.DetectionWithImageParams{Label: []string{"nonexistent", "fake"}, DeviceID: 0, CreatedAt: hourAgo},
 				wantEmpty: true,
 				message:   "label parameters are ORd",
 			},
