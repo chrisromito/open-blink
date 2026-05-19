@@ -7,7 +7,6 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
-	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
@@ -16,7 +15,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -92,38 +90,38 @@ func main() {
 	}
 }
 
-func loop(ctx context.Context, a *app.App) error {
-	logger.Debug().Str("fn", "main.loop").Msg("begin...")
-	deviceRepo := a.AppDeps.DeviceRepo
-	deviceList, rErr := deviceRepo.ListDevices(ctx)
-	if rErr != nil {
-		return rErr
-	}
-	cs := camera.NewCameraService(
-		a.Conf,
-		a.AppDeps,
-		detection.NewObjectDetectionService(a.Conf),
-		a.MqttClient,
-	)
-	var wg sync.WaitGroup
-	// Call "Snapshot" for each device
-	for _, device := range deviceList {
-		wg.Add(1)
-		go func(d devices.Device) {
-			defer wg.Done()
-			logger.Info().Str("fn", "main.loop").
-				Msgf("getting snapshot from device %d", device.ID)
-			err := cs.Snapshot(ctx, device)
-			if err != nil {
-				logger.Error().Str("fn", "main.loop").
-					Msgf("error %v", err)
-			}
-		}(device)
-	}
-	// Wait until we grab images and detections for all devices
-	wg.Wait()
-	return nil
-}
+//func loop(ctx context.Context, a *app.App) error {
+//	logger.Debug().Str("fn", "main.loop").Msg("begin...")
+//	deviceRepo := a.AppDeps.DeviceRepo
+//	deviceList, rErr := deviceRepo.ListDevices(ctx)
+//	if rErr != nil {
+//		return rErr
+//	}
+//	cs := camera.NewCameraService(
+//		a.Conf,
+//		a.AppDeps,
+//		detection.NewObjectDetectionService(a.Conf),
+//		a.MqttClient,
+//	)
+//	var wg sync.WaitGroup
+//	// Call "Snapshot" for each device
+//	for _, device := range deviceList {
+//		wg.Add(1)
+//		go func(d devices.Device) {
+//			defer wg.Done()
+//			logger.Info().Str("fn", "main.loop").
+//				Msgf("getting snapshot from device %d", device.ID)
+//			err := cs.Snapshot(ctx, device)
+//			if err != nil {
+//				logger.Error().Str("fn", "main.loop").
+//					Msgf("error %v", err)
+//			}
+//		}(device)
+//	}
+//	// Wait until we grab images and detections for all devices
+//	wg.Wait()
+//	return nil
+//}
 
 func loopGroup(ctx context.Context, a *app.App) error {
 	logger.Debug().Str("fn", "main.loop").Msg("begin...")

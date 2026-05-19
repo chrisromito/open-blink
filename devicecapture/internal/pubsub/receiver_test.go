@@ -206,7 +206,7 @@ func TestMqttReceiver_EndSession(t *testing.T) {
 	// but we can test that the method constructs the correct topic and payload
 	err := rec.EndSession()
 
-	// We expect an error because the client isn't actually connected
+	// We expect an error because the client isn't connected
 	if err == nil {
 		t.Error("Expected error when publishing without connected client")
 	}

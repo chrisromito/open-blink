@@ -72,7 +72,9 @@ func (a *Api) Ping() bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 

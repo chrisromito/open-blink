@@ -46,7 +46,9 @@ func (o ObjectDetectionService) sendImage(imageBytes []byte) ([]Detection, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
 
 	fmt.Printf("Sending image to: %s\n", o.url)
 	// Send image length (4 bytes, big-endian)
