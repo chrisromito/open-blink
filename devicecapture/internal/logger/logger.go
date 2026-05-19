@@ -5,21 +5,11 @@ import (
 	"os"
 )
 
-var log zerolog.Logger = NewLogger()
+var log = NewLogger()
 
 // NewLogger creates and returns a new zerolog.Logger instance that writes to stdout.
 func NewLogger() zerolog.Logger {
 	return zerolog.New(os.Stdout).With().Timestamp().Logger()
-}
-
-// SetLevel sets the logger's level.
-func SetLevel(level zerolog.Level) {
-	log = log.Level(level)
-}
-
-// GetLogger returns a pointer to the logger.
-func GetLogger() *zerolog.Logger {
-	return &log
 }
 
 // Debug logs a message at debug level.

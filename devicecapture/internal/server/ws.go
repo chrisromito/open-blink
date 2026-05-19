@@ -28,7 +28,9 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 			logger.Error().Err(err).Send()
 			return
 		}
-		defer c.CloseNow()
+		defer func(c *websocket.Conn) {
+			_ = c.CloseNow()
+		}(c)
 
 		ctx, cancel := context.WithTimeout(r.Context(), time.Minute*10)
 		defer cancel()
