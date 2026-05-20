@@ -220,7 +220,8 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 			return
 		}
 		// We have >= 1 detection, store them in the DB & broadcast to MQTT
-		logger.Debug().Msgf("\n\nCameraService: writing detections: %v", detections)
+		logger.Debug().Any("detections", detections).
+			Msgf("\n\nCameraService: writing detections: %v", detections)
 		// Loop, transpose items, and write to the repo
 		//topic := "detection/" + strconv.Itoa(int(deviceId))
 		topic := "detections/" + strconv.Itoa(int(deviceId))
@@ -242,6 +243,8 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 				Err(jErr).Send()
 			return
 		}
+		logger.Debug().Str("service", "camera").Str("detections", p).
+			Msg("sent to detections topic")
 		qtErr := s.mqttClient.Publish(topic, p)
 		if qtErr != nil {
 			logger.Error().Str("service", "camera").Str("thing", "mqttPublish").
