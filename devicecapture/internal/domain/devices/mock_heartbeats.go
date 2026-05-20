@@ -17,13 +17,13 @@ func NewMockHeartbeat() *MockHeartbeat {
 	}
 }
 
-func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceID int64) ([]Heartbeat, error) {
+func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceId int64) ([]Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	var result []Heartbeat
 	for _, heartbeat := range h.hbs {
-		if heartbeat.DeviceID == deviceID {
+		if heartbeat.DeviceID == deviceId {
 			result = append(result, heartbeat)
 		}
 	}
@@ -73,13 +73,13 @@ func (h *MockHeartbeat) LatestBeats(_ context.Context) ([]LatestBeatsRow, error)
 }
 
 // RecordBeat Record a DeviceHeartbeat
-func (h *MockHeartbeat) RecordBeat(_ context.Context, deviceID int64) (Heartbeat, error) {
+func (h *MockHeartbeat) RecordBeat(_ context.Context, deviceId int64) (Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	heartbeat := Heartbeat{
 		ID:        int64(len(h.hbs) + 1),
-		DeviceID:  deviceID,
+		DeviceID:  deviceId,
 		CreatedAt: time.Now(),
 	}
 
@@ -87,13 +87,13 @@ func (h *MockHeartbeat) RecordBeat(_ context.Context, deviceID int64) (Heartbeat
 	return heartbeat, nil
 }
 
-func (h *MockHeartbeat) DeleteBeats(_ context.Context, deviceID int64) error {
+func (h *MockHeartbeat) DeleteBeats(_ context.Context, deviceId int64) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	var filteredHeartbeats []Heartbeat
 	for _, heartbeat := range h.hbs {
-		if heartbeat.DeviceID != deviceID {
+		if heartbeat.DeviceID != deviceId {
 			filteredHeartbeats = append(filteredHeartbeats, heartbeat)
 		}
 	}

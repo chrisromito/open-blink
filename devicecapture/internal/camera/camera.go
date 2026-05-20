@@ -29,6 +29,9 @@ type CameraService struct {
 	mu            sync.Mutex
 }
 
+// NewCameraService creates a new CameraService instance with the provided configuration,
+// dependencies, object detector, and MQTT client. It initializes the service with an
+// empty slice of connected device IDs and returns the configured service.
 func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection.ObjectDetector, qtClient *pubsub.MqttClient) *CameraService {
 	ids := make([]string, 10)
 	cs := &CameraService{
@@ -44,8 +47,6 @@ func NewCameraService(conf *config.Config, deps *domain.Deps, detector detection
 	}
 	return cs
 }
-
-//func WithDetection()
 
 func (s *CameraService) IsValidId(deviceId string) bool {
 	id, err := strconv.ParseInt(deviceId, 10, 64)
@@ -64,6 +65,10 @@ func (s *CameraService) IsStreaming(deviceId string) bool {
 	return false
 }
 
+// Snapshot captures a single frame from the specified device and saves it to disk.
+// It starts a temporary capture session, retrieves one frame from the device's API,
+// and processes it through the frame handling pipeline including optional object detection.
+// The session is automatically closed when the method completes.
 func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 	stringId := d.StringId()
 	api := NewApi(stringId, d.DeviceUrl)
@@ -72,9 +77,10 @@ func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 		return sErr
 	}
 	defer func(FrameRepo receiver.FrameRepository) {
-		_ = FrameRepo.EndSession()
+		_ = FrameRepo.EndSession(session)
 	}(s.FrameRepo)
 
+	// Get a frame and pass it down the pipe
 	frame, err := api.Snapshot(ctx)
 	if err != nil {
 		return err
@@ -83,6 +89,10 @@ func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 	return s.receiveFrame(ctx, d.ID, fp, frame, true)
 }
 
+// StartStream wraps the process of checking if a device is streaming, validating the device ID,
+// starting the CaptureSession, and managing the streaming workflow. It validates the device exists
+// and has a valid URL, then starts concurrent goroutines to handle frame streaming and processing.
+// The stream runs for a maximum of 15 seconds and processes frames at 4 FPS with object detection on every other frame.
 func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*receiver.CaptureSession, error) {
 	if s.IsStreaming(deviceId) {
 		return &receiver.CaptureSession{}, errors.New("multiplexing is not supported")
@@ -114,7 +124,7 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	}
 	defer func(FrameRepo receiver.FrameRepository) {
 		// make sure we close it out
-		_ = FrameRepo.EndSession()
+		_ = FrameRepo.EndSession(session)
 	}(s.FrameRepo)
 
 	// wg ends when the stream is complete
@@ -159,9 +169,7 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 
 				session.SetLastFrame(&img)
 				fp := receiver.FramePath(s.Config.VideoPath, session, img)
-				// Only run inference on 1/2 frames
-				doDetect := session.GetFrameCount()%2 == 0
-				e := s.receiveFrame(streamCtx, id, fp, img, doDetect)
+				e := s.receiveFrame(streamCtx, id, fp, img, true)
 				if e != nil {
 					logger.Error().Str("service", "camera.StartStream").
 						Msgf("receiveFrame threw %v", e)
@@ -177,6 +185,10 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	return session, nil
 }
 
+// receiveFrame processes a single frame by saving it as an image record and optionally
+// performing object detection. If detection is enabled and objects are found, it stores
+// the detections in the database and publishes them to MQTT. The frame is also passed
+// to the FrameRepository for storage. All operations run concurrently using goroutines.
 func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, framePath string, frame receiver.Frame, detect bool) error {
 	var wg sync.WaitGroup
 	if cErr := ctx.Err(); cErr != nil {
@@ -223,9 +235,8 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 			logger.Error().Msgf("error writing detections to detection repo %v", err)
 			return
 		}
-		thisIp := s.Config.ThisIp
 		// Publish batch to MQTT
-		p, jErr := receiver.DetectionsToMsg(thisIp, imageRecord, toPublish)
+		p, jErr := receiver.DetectionsToMsg(s.Config.ThisIp, imageRecord, toPublish)
 		if jErr != nil {
 			logger.Error().Str("service", "camera").
 				Err(jErr).Send()
@@ -237,34 +248,16 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 				Err(qtErr).Send()
 			return
 		}
-
-		// Loop through, publish each detection
-		//for _, d := range toPublish {
-		//	payload, jsonErr := receiver.DetectionToMsg(thisIp, framePath, d)
-		//	//payload, jsonErr := json.Marshal(d)
-		//	if jsonErr != nil {
-		//		logger.Error().Msgf("error marshalling %v to JSON: %v", d, jsonErr)
-		//		return
-		//	}
-		//	// publish successful detections
-		//	qtErr := s.mqttClient.Publish(topic, payload)
-		//	if qtErr != nil {
-		//		logger.Error().Msgf("error publishing %v: %v", payload, qtErr)
-		//		return
-		//	} else {
-		//		logger.Info().Msgf("published %v to %s", payload, topic)
-		//	}
-		//}
 		return
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// Update FrameRepo
-		repoErr := s.FrameRepo.ReceiveFrame(frame, framePath)
+		// Update MQTT via FrameRepo
+		repoErr := s.FrameRepo.PublishFrame(frame, framePath, strconv.Itoa(int(deviceId)))
 		if repoErr != nil {
-			logger.Error().Msgf("CameraService.startStream.FrameRepo.ReceiveFrame threw an error %v", repoErr)
+			logger.Error().Msgf("CameraService.startStream.FrameRepo.PublishFrame threw an error %v", repoErr)
 		}
 		return
 	}()

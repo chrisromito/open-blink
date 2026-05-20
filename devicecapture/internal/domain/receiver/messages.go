@@ -67,34 +67,21 @@ func FrameJson(thisIp string, deviceId string, filePath string, fr Frame) (strin
 //	return string(value), nil
 //}
 
-// Det shape of nested `detections` within a DetectionsMsg
-type Det struct {
-	ID         int64       `db:"id" json:"id"`
-	Label      string      `db:"label" json:"label"`
-	Confidence float64     `db:"confidence" json:"confidence"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
-}
-
-func detectionsToDets(ds []devices.Detection) []Det {
-	var accum []Det
-	for _, d := range ds {
-		accum = append(accum, Det{
-			ID:         d.ID,
-			Label:      d.Label,
-			Confidence: d.Confidence,
-			Bbox:       d.Bbox,
-		})
-	}
-	return accum
-}
-
 // DetectionsMsg shape of MQTT messages that get published to /detections/IMAGE_ID
 type DetectionsMsg struct {
 	ID         int64     `db:"id" json:"id"`
 	DeviceID   int64     `db:"device_id" json:"device_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	Url        string    `json:"url"`
-	Detections []Det     `db:"detections" json:"detections"`
+	Url        string        `json:"url"`
+	Detections []QtDetection `db:"detections" json:"detections"`
+}
+
+// QtDetection shape of nested `detections` within a DetectionsMsg
+type QtDetection struct {
+	ID         int64       `db:"id" json:"id"`
+	Label      string      `db:"label" json:"label"`
+	Confidence float64     `db:"confidence" json:"confidence"`
+	Bbox       [][]float64 `db:"bbox" json:"bbox"`
 }
 
 // DetectionsToMsg get JSON serialized string representation of detections
@@ -104,7 +91,7 @@ func DetectionsToMsg(thisIp string, i devices.DeviceImage, ds []devices.Detectio
 		DeviceID:   i.DeviceID,
 		CreatedAt:  i.CreatedAt,
 		Url:        thisIp + i.ImagePath,
-		Detections: detectionsToDets(ds),
+		Detections: detectionsToMqtt(ds),
 	}
 	value, err := json.Marshal(msg)
 	if err != nil {
@@ -112,3 +99,17 @@ func DetectionsToMsg(thisIp string, i devices.DeviceImage, ds []devices.Detectio
 	}
 	return string(value), nil
 }
+
+func detectionsToMqtt(ds []devices.Detection) []QtDetection {
+	var accum []QtDetection
+	for _, d := range ds {
+		accum = append(accum, QtDetection{
+			ID:         d.ID,
+			Label:      d.Label,
+			Confidence: d.Confidence,
+			Bbox:       d.Bbox,
+		})
+	}
+	return accum
+}
+

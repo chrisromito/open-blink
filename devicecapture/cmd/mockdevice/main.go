@@ -45,7 +45,7 @@ func addLabel(img *image.RGBA, x, y int, label string) {
 	d.DrawString(label)
 }
 
-func mjpegHandler(w http.ResponseWriter, r *http.Request) {
+func mjpegHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
 	log.Print("mockdevice -> mjpegHandler")
 	boundary := "\r\n--frame\r\nContent-Type: image/jpeg\r\n\r\n"

@@ -120,18 +120,18 @@ func (m *MqttClient) Connect() error {
 	return nil
 }
 
-// Publish publishes a message on a specific topic. An error is returned if there was problem. This function will publish with a QOS of 1.
+// Publish publishes a message on a specific topic. An error is returned if there was a problem. This function will publish with a QOS of 0.
 func (m *MqttClient) Publish(topic string, payload interface{}) error {
 	if m.Client == nil {
 		return fmt.Errorf("client not connected")
 	}
-	if token := m.Client.Publish(topic, 1, false, payload); token.Wait() && token.Error() != nil {
+	if token := m.Client.Publish(topic, 0, false, payload); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	return nil
 }
 
-// Subscribe creates a subscription for the passed topic. The callBack function is used to process any messages that the client receives on that topic. The subscription created will have a QOS of 1.
+// Subscribe creates a subscription for the passed topic. The callBack function is used to process any messages that the client receives on that topic. The subscription created will have a QOS of 2.
 func (m *MqttClient) Subscribe(topic string, f mqtt.MessageHandler) error {
 	if token := m.Client.Subscribe(topic, 2, f); token.Wait() && token.Error() != nil {
 		return token.Error()

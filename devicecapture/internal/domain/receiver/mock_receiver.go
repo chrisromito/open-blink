@@ -1,7 +1,6 @@
 package receiver
 
 import (
-	"context"
 	"sync"
 	"time"
 )
@@ -41,42 +40,17 @@ func (fr *MockFrameRepo) StartSession(deviceId string) (*CaptureSession, error) 
 }
 
 // EndSession MockFrameRepo implements receiver.FrameRepository
-func (fr *MockFrameRepo) EndSession() error {
+func (fr *MockFrameRepo) EndSession(_ *CaptureSession) error {
 	fr.mu.Lock()
 	defer fr.mu.Unlock()
 	fr.Running = false
 	return nil
 }
 
-// ReceiveFrame MockFrameRepo implements receiver.FrameRepository
-func (fr *MockFrameRepo) ReceiveFrame(frame Frame, _ string) error {
+// PublishFrame MockFrameRepo implements receiver.FrameRepository
+func (fr *MockFrameRepo) PublishFrame(frame Frame, _ string, _ string) error {
 	fr.mu.Lock()
 	defer fr.mu.Unlock()
 	fr.lastFrame = &frame
 	return nil
-}
-
-// ReceiveFrameStream MockFrameRepo implements receiver.FrameRepository
-func (fr *MockFrameRepo) ReceiveFrameStream(ctx context.Context, imgChan <-chan Frame) error {
-	done := make(chan error)
-	go func() {
-		for {
-			select {
-			case img, ok := <-imgChan:
-				if !ok {
-					done <- nil
-					return
-				}
-				err := fr.ReceiveFrame(img, FramePath("/tmp", fr.lastSession, img))
-				if err != nil {
-					done <- err
-					return
-				}
-			case <-ctx.Done():
-				done <- nil
-				return
-			}
-		}
-	}()
-	return <-done
 }
