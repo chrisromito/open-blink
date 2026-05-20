@@ -19,7 +19,7 @@ services:
     depends_on:
       - mosquitto
       - postgres
-    env_file: .env.example
+    env_file: .env
     restart: unless-stopped
   deviceserver:
     build:
@@ -36,33 +36,8 @@ services:
     depends_on:
       - mosquitto
       - postgres
-    env_file: .env.example
+    env_file: .env
     restart: unless-stopped
-  mock_device:
-    build:
-      context: ./devicecapture
-      dockerfile: docker/mockdevice.Dockerfile
-    container_name: mock_device
-    networks:
-      - openblink
-    depends_on:
-      - mosquitto
-      - postgres
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
-  publisher:
-    build:
-      context: ./devicecapture
-      dockerfile: docker/publisher.Dockerfile
-    container_name: publisher
-    networks:
-      - openblink
-    depends_on:
-      - test
-      - mosquitto
-      - postgres
-    env_file: .env.example
   test:
     build:
       context: ./devicecapture

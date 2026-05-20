@@ -37,7 +37,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 
 		ctx = c.CloseRead(ctx)
 
-		// Subscribe to the "detection/*" topic & proxy
+		// Subscribe to the "detection/*" topic and proxy
 		// incoming messages to the WS client
 		// MQTT
 		qtClient := a.MqttClient.CopyWithClientId("detection-proxy" + uuid.New().String())

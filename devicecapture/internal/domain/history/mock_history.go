@@ -18,7 +18,7 @@ func (m *MockDetectionHistory) GetRecentLabels(_ context.Context) ([]string, err
 	return []string{"car", "truck", "person", "bicycle", "dog"}, nil
 }
 
-func (m *MockDetectionHistory) GetDetectionImagesByLabel(_ context.Context, params DetectionWithImageParams) ([]DetectionWithImage, error) {
+func (m *MockDetectionHistory) GetDetectionImagesByLabel(_ context.Context, _ DetectionWithImageParams) ([]DetectionWithImage, error) {
 	return []DetectionWithImage{
 		{
 			ID:         1,

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// DetectionWithImage Detection record w/ an image path. Ie. what users care about
+// DetectionWithImage Detection record w/ an image path (what users care about).
 type DetectionWithImage struct {
 	ID         int64       `db:"id" json:"id"`
 	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
