@@ -37,7 +37,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 
 		ctx = c.CloseRead(ctx)
 
-		// Subscribe to the "detection/*" topic & proxy
+		// Subscribe to the "detection/*" topic and proxy
 		// incoming messages to the WS client
 		// MQTT
 		qtClient := a.MqttClient.CopyWithClientId("detection-proxy" + uuid.New().String())
@@ -53,7 +53,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = qtClient.Subscribe("detection/#", func(client mqtt.Client, msg mqtt.Message) {
+			err = qtClient.Subscribe("detections/#", func(client mqtt.Client, msg mqtt.Message) {
 				logger.Error().Msgf("detection msg received, passing to websocket client")
 				wsErr := wsjson.Write(ctx, c, string(msg.Payload()))
 				if wsErr != nil {

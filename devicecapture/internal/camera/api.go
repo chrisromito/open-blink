@@ -16,6 +16,12 @@ import (
 	"time"
 )
 
+// Api provides an interface for the network interactions between open-blink and deployed CameraDevices
+// Our cameras have consistent HTTP methods:
+// GET /ping - Returns a 200 status if this device is accessible
+// GET /snapshot - Returns a JPEG
+// GET /stream - MJPEG stream
+// GET /restart - Restarts the camera application on the device
 type Api struct {
 	DeviceId string
 	Url      string
@@ -109,12 +115,12 @@ func (a *Api) Snapshot(ctx context.Context) (receiver.Frame, error) {
 	return NewFrameFromImage(img), nil
 }
 
-// Create a channel to handle decoder results
 type decodeResult struct {
 	data []byte
 	err  error
 }
 
+// Stream kick off the MJPEG stream. Exits when the context is canceled, `stream` is updated as results come in
 func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	client := &http.Client{}
 	streamUrl := a.Url + "/stream"
@@ -144,6 +150,7 @@ func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	if err2 != nil {
 		return err2
 	}
+	// channel for incoming decoder results
 	decodeChan := make(chan decodeResult, 1)
 	for {
 		go func() {
@@ -184,6 +191,7 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		// 4 FPS
 		ticker := time.NewTicker(250 * time.Millisecond)
 		for {
 			select {
@@ -200,6 +208,7 @@ func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) e
 		}
 	}()
 
+	// goroutine that calls `api.Stream`, this updates our MJPEG stream in a non-blocking manner
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
