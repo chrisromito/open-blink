@@ -1,9 +1,9 @@
 package receiver
 
 import (
-	"context"
 	"fmt"
 	"image"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -11,9 +11,8 @@ import (
 // FrameRepository interface for storing frames
 type FrameRepository interface {
 	StartSession(deviceId string) (*CaptureSession, error)
-	EndSession() error
-	ReceiveFrame(frame Frame, framePath string) error
-	ReceiveFrameStream(ctx context.Context, imgChan <-chan Frame) error
+	EndSession(session *CaptureSession) error
+	PublishFrame(frame Frame, framePath string, deviceId string) error
 }
 
 type Frame struct {
@@ -57,6 +56,14 @@ func (cr *CaptureSession) GetFrameCount() int {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 	return cr.frameCount
+}
+
+func (cr *CaptureSession) IntID() (int64, error) {
+	value, err := strconv.ParseInt(cr.DeviceID, 10, 64)
+	if err != nil {
+		return int64(0), err
+	}
+	return value, nil
 }
 
 func FramePath(prefix string, session *CaptureSession, frame Frame) string {

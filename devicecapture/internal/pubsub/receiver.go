@@ -2,7 +2,6 @@
 package pubsub
 
 import (
-	"context"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/receiver"
 	"devicecapture/internal/logger"
@@ -16,7 +15,6 @@ type MqttReceiver struct {
 	client    *MqttClient
 	videoPath string
 	serverIp  string
-	Session   *receiver.CaptureSession
 }
 
 func NewMqttReceiver(client *MqttClient, conf *config.Config) *MqttReceiver {
@@ -30,16 +28,15 @@ func NewMqttReceiver(client *MqttClient, conf *config.Config) *MqttReceiver {
 // StartSession Start a receiver.CaptureSession
 func (r *MqttReceiver) StartSession(deviceId string) (*receiver.CaptureSession, error) {
 	s := receiver.NewCaptureSession(deviceId)
-	r.Session = s
-	err := r.checkSessionDir()
+	err := r.checkSessionDir(s)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func (r *MqttReceiver) checkSessionDir() error {
-	dir := fmt.Sprintf("%s/%s-%v", r.videoPath, r.Session.DeviceID, r.Session.StartedAt)
+func (r *MqttReceiver) checkSessionDir(session *receiver.CaptureSession) error {
+	dir := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
 	_, err := os.Stat(dir)
 	if os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0755)
@@ -50,9 +47,9 @@ func (r *MqttReceiver) checkSessionDir() error {
 	return nil
 }
 
-func (r *MqttReceiver) EndSession() error {
-	topic := fmt.Sprintf("end-stream/%s", r.Session.DeviceID)
-	payload := fmt.Sprintf("%s/%s-%v", r.videoPath, r.Session.DeviceID, r.Session.StartedAt)
+func (r *MqttReceiver) EndSession(session *receiver.CaptureSession) error {
+	topic := fmt.Sprintf("end-stream/%s", session.DeviceID)
+	payload := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
 	err := r.client.Publish(topic, payload)
 	if err != nil {
 		return err
@@ -60,13 +57,10 @@ func (r *MqttReceiver) EndSession() error {
 	return nil
 }
 
-// ReceiveFrame publishes Frames (JSON) to "image/<deviceID>"
-func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) error {
-	logger.Debug().Msgf("mqttreceiver.ReceiveFrame")
+// PublishFrame publishes Frames (JSON) to "image/<deviceID>"
+func (r *MqttReceiver) PublishFrame(frame receiver.Frame, framePath string, deviceId string) error {
+	logger.Debug().Msgf("mqttreceiver.PublishFrame")
 	var fp = framePath
-	if framePath == "" {
-		fp = receiver.FramePath(r.videoPath, r.Session, frame)
-	}
 	logger.Debug().Msgf("Writing frame to file: %v at %s", frame.Timestamp, fp)
 	f, err := os.Create(fp)
 	defer func(f *os.File) {
@@ -81,65 +75,16 @@ func (r *MqttReceiver) ReceiveFrame(frame receiver.Frame, framePath string) erro
 		logger.Error().Msgf("error encoding frame to JPEG for %s", fp)
 		return err2
 	}
-	payload, err3 := r.FrameToJson(r.serverIp, frame)
+	payload, err3 := receiver.FrameJson(r.serverIp, deviceId, framePath, frame)
 	if err3 != nil {
-		logger.Error().Msgf("error from FrameToJson for %s", fp)
+		logger.Error().Msgf("error from FrameJson for %s", fp)
 		return err3
 	}
-	topic := fmt.Sprintf("image/%s", r.Session.DeviceID)
+	topic := fmt.Sprintf("image/%s", deviceId)
 	err = r.client.Publish(topic, payload)
-	logger.Debug().Msgf("Writing device %s frame to topic: %v ", r.Session.DeviceID, topic)
+	logger.Debug().Msgf("Writing device %s frame to topic: %v ", deviceId, topic)
 	if err != nil {
-		logger.Error().Msgf("error publishing device %s frame to topic %v", r.Session.DeviceID, topic)
+		logger.Error().Msgf("error publishing device %s frame to topic %v", deviceId, topic)
 	}
 	return nil
-}
-
-func (r *MqttReceiver) ReceiveFrameStream(ctx context.Context, imgChan <-chan receiver.Frame) error {
-	outChan := make(chan receiver.Frame, 64)
-	defer close(outChan)
-
-	// Worker goroutine
-	go func() {
-		for {
-			select {
-			case img, ok := <-imgChan:
-				if !ok {
-					return
-				}
-				outChan <- img
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// Receiver goroutine
-	go func() {
-		for {
-			select {
-			case img, ok := <-outChan:
-				if !ok {
-					return
-				}
-				err := r.ReceiveFrame(img, receiver.FramePath(r.videoPath, r.Session, img))
-				if err != nil {
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	<-ctx.Done()
-	return nil
-}
-
-func (r *MqttReceiver) FrameToJson(thisIp string, frame receiver.Frame) (string, error) {
-	fp := receiver.FramePath(r.videoPath, r.Session, frame)
-	payload, err := receiver.FrameJson(thisIp, r.Session.DeviceID, fp, frame)
-	if err != nil {
-		return "", err
-	}
-	return payload, nil
 }

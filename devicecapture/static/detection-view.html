@@ -442,7 +442,7 @@
         detectionFeed.innerHTML = '<div id="detection-message" class="detection-pending">Loading Recent Detections...</div>'
         const deviceParam = deviceSelect.value
         const labelParam = getSelectedLabels()
-        const fetchUrl = new URL('/api/detection-images', window.location.origin)
+        const fetchUrl = new URL('/api/detection-image', window.location.origin)
         if (labelParam.length) {
             labelParam.forEach(label => fetchUrl.searchParams.append('label', label))
         }
@@ -468,7 +468,7 @@
 
     async function initLabelSelect() {
         try {
-            const response = await fetch('/api/labels', {
+            const response = await fetch('/api/label', {
                 headers: {
                     'Content-Type': 'application/json'
                 }
