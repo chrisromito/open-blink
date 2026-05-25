@@ -15,3 +15,16 @@ Device management uses MQTT to push messages to devices
 - /image/{DEVICE_ID}: Image payloads (as bytes)
 - object-detection/{DEVICE_ID}
 
+## Helpful Commands
+### Re-generate models.go
+```shell
+sqlc generate
+```
+
+### Generate Migrations
+```shell
+docker run --rm -v ./internal/postgres/migrations:/migrations \
+  -e GOOSE_COMMAND="create" \
+  -e GOOSE_COMMAND_ARG="my_new_migration_name sql" \
+  ghcr.io/kukymbr/goose-docker:v3.27.0
+```

@@ -102,21 +102,31 @@ func run(ctx context.Context, a *app.App) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case msg := <-msgChan:
 			logger.Debug().Str("fn", "run").
 				Msgf("capturing streams for devices due to topic: %v, & message %v", msg.Topic(), msg.Payload())
 			err := loopDevices(ctx, a, true)
 			if err != nil {
-				return err
+				logger.Error().
+					Str("fn", "main").
+					Str("target", "loopDevices").
+					Bool("motionDetected", true).
+					Err(err).Send()
 			}
-			logger.Debug().Str("fn", "run").Msg("captured streams, continuing loop")
+			logger.Debug().Str("fn", "run").
+				Msg("captured streams, continuing loop")
 		default:
 			err := loopDevices(ctx, a, false)
 			if err != nil {
-				return err
+				logger.Error().
+					Str("fn", "main").
+					Str("target", "loopDevices").
+					Bool("motionDetected", false).
+					Err(err).Send()
 			}
-			logger.Debug().Str("fn", "main").Msg("sleeping...")
+			logger.Debug().Str("fn", "main").
+				Msg("sleeping...")
 			time.Sleep(30 * time.Second)
 		}
 	}
