@@ -32,10 +32,11 @@ WHERE label ILIKE ANY ($1::text[])
     CASE
         WHEN $3::timestamp with time zone IS NOT NULL
             THEN detections.created_at >= $3
-        ELSE detections.created_at >= NOW() - INTERVAL '7 days'
+        ELSE detections.created_at >= (NOW() - INTERVAL '7 days')
         END
     )
 ORDER BY detections.created_at DESC
+LIMIT 500
 `
 
 type GetDetectionImagesByLabelParams struct {
@@ -85,7 +86,7 @@ func (q *Queries) GetDetectionImagesByLabel(ctx context.Context, arg GetDetectio
 const getRecentLabels = `-- name: GetRecentLabels :many
 SELECT DISTINCT(label)
 FROM detections
-WHERE created_at > NOW() - INTERVAL '7 days'
+WHERE created_at > (NOW() - INTERVAL '7 days')
 `
 
 // ----------------------------

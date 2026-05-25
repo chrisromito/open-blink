@@ -1,4 +1,4 @@
-------------------------------
+---------------------------------
 -- Detection API
 ---------------------------------
 -- name: GetRecentLabels :many
@@ -31,4 +31,5 @@ WHERE label ILIKE ANY (@label::text[])
         ELSE detections.created_at >= (NOW() - INTERVAL '7 days')
         END
     )
-ORDER BY detections.created_at DESC;
+ORDER BY detections.created_at DESC
+LIMIT 500;
