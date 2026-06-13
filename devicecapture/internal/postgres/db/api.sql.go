@@ -89,7 +89,7 @@ FROM detections
 WHERE created_at > (NOW() - INTERVAL '7 days')
 `
 
-// ----------------------------
+// -------------------------------
 // Detection API
 // -------------------------------
 func (q *Queries) GetRecentLabels(ctx context.Context) ([]string, error) {

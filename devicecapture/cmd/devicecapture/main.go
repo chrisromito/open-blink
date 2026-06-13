@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"devicecapture/internal/app"
+	"devicecapture/internal/archive"
 	"devicecapture/internal/camera"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
@@ -98,6 +99,7 @@ func run(ctx context.Context, a *app.App) error {
 	if qtErr != nil {
 		return qtErr
 	}
+	archiveTicker := time.NewTicker(4 * time.Hour)
 
 	for {
 		select {
@@ -112,10 +114,22 @@ func run(ctx context.Context, a *app.App) error {
 					Str("fn", "main").
 					Str("target", "loopDevices").
 					Bool("motionDetected", true).
-					Err(err).Send()
+					Err(err).
+					Send()
 			}
 			logger.Debug().Str("fn", "run").
 				Msg("captured streams, continuing loop")
+		case <-archiveTicker.C:
+			// Archive old images every 4 hours
+			logger.Debug().Str("fn", "run").
+				Msg("devicecapture is archiving old images")
+			arch := archive.NewArchivist(a.Conf, a.Db.GetQueries())
+			archiveErr := arch.Run(ctx)
+			if archiveErr != nil {
+				logger.Error().Str("Archivist", "Run").
+					Err(archiveErr).
+					Send()
+			}
 		default:
 			err := loopDevices(ctx, a, false)
 			if err != nil {

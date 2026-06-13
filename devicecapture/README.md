@@ -1,4 +1,5 @@
 # Device service
+
 ####################
 
 TLDR: Device = ESP32CAM that acts as a "server". This module is the client.
@@ -6,9 +7,10 @@ Devices update this system via MQTT
 This system receives MJPEG streams directly from devices on the network.
 Devices are configured in Postgres "open_blink" DB; "devices" table
 
-
 ### Server <-> MQTT <-> Device
+
 Device management uses MQTT to push messages to devices
+
 - /heartbeat/: Device heartbeat
 - /start-stream/: Allow users to turn on video feeds remotely
 - /motion-detected/: Device notifies server of motion detection
@@ -16,12 +18,15 @@ Device management uses MQTT to push messages to devices
 - object-detection/{DEVICE_ID}
 
 ## Helpful Commands
+
 ### Re-generate models.go
+
 ```shell
 sqlc generate
 ```
 
 ### Generate Migrations
+
 ```shell
 docker run --rm -v ./internal/postgres/migrations:/migrations \
   -e GOOSE_COMMAND="create" \
