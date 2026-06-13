@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"devicecapture/internal/app"
+	"devicecapture/internal/archive"
 	"devicecapture/internal/camera"
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
@@ -98,25 +99,48 @@ func run(ctx context.Context, a *app.App) error {
 	if qtErr != nil {
 		return qtErr
 	}
+	archiveTicker := time.NewTicker(4 * time.Hour)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case msg := <-msgChan:
 			logger.Debug().Str("fn", "run").
 				Msgf("capturing streams for devices due to topic: %v, & message %v", msg.Topic(), msg.Payload())
 			err := loopDevices(ctx, a, true)
 			if err != nil {
-				return err
+				logger.Error().
+					Str("fn", "main").
+					Str("target", "loopDevices").
+					Bool("motionDetected", true).
+					Err(err).
+					Send()
 			}
-			logger.Debug().Str("fn", "run").Msg("captured streams, continuing loop")
+			logger.Debug().Str("fn", "run").
+				Msg("captured streams, continuing loop")
+		case <-archiveTicker.C:
+			// Archive old images every 4 hours
+			logger.Debug().Str("fn", "run").
+				Msg("devicecapture is archiving old images")
+			arch := archive.NewArchivist(a.Conf, a.Db.GetQueries())
+			archiveErr := arch.Run(ctx)
+			if archiveErr != nil {
+				logger.Error().Str("Archivist", "Run").
+					Err(archiveErr).
+					Send()
+			}
 		default:
 			err := loopDevices(ctx, a, false)
 			if err != nil {
-				return err
+				logger.Error().
+					Str("fn", "main").
+					Str("target", "loopDevices").
+					Bool("motionDetected", false).
+					Err(err).Send()
 			}
-			logger.Debug().Str("fn", "main").Msg("sleeping...")
+			logger.Debug().Str("fn", "main").
+				Msg("sleeping...")
 			time.Sleep(30 * time.Second)
 		}
 	}

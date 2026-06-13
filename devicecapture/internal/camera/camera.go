@@ -185,6 +185,18 @@ func (s *CameraService) StartStream(ctx context.Context, deviceId string) (*rece
 	return session, nil
 }
 
+func (s *CameraService) detectionsForFrame(ctx context.Context, deviceId int64, frame receiver.Frame) ([]detection.Detection, error) {
+	req := detection.Req{
+		DeviceId: deviceId,
+		Frame:    frame,
+	}
+	detections, dErr := s.Detector.DetectObjectsForImage(ctx, req)
+	if dErr != nil {
+		return []detection.Detection{}, errors.New("failed to get detections for frame")
+	}
+	return detections, nil
+}
+
 // receiveFrame processes a single frame by saving it as an image record and optionally
 // performing object detection. If detection is enabled and objects are found, it stores
 // the detections in the database and publishes them to MQTT. The frame is also passed
@@ -200,20 +212,20 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 		defer wg.Done()
 		imageRecord, err := s.ImageRepo.CreateImage(ctx, devices.CreateImageParams{DeviceID: deviceId, ImagePath: framePath})
 		if err != nil {
-			logger.Error().Err(err).
-				Msgf("failed to save image to %s ", framePath)
+			logger.Error().Str("service", "camera.receiveFrame").
+				Str("threwFrom", "camera.ImageRepo.CreateImage").
+				Str("failed to save image to", framePath).
+				Err(err).Send()
 			return
 		}
 		if !detect {
 			return
 		}
-		req := detection.Req{
-			DeviceId: deviceId,
-			Frame:    frame,
-		}
-		detections, dErr := s.Detector.DetectObjectsForImage(ctx, req)
+		detections, dErr := s.detectionsForFrame(ctx, deviceId, frame)
 		if dErr != nil {
-			logger.Error().Msgf("\n\ndetection err: %v", dErr)
+			logger.Error().
+				Str("service", "camera.detectionsForFrame").
+				Err(dErr).Send()
 			return
 		}
 		if len(detections) < 1 {
@@ -233,7 +245,8 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 		// Write to the DB
 		toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
 		if err != nil {
-			logger.Error().Msgf("error writing detections to detection repo %v", err)
+			logger.Error().Str("service", "camera.DetectionRepo.CreateDetections").
+				Err(err).Send()
 			return
 		}
 		// Publish batch to MQTT
@@ -243,11 +256,13 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 				Err(jErr).Send()
 			return
 		}
-		logger.Debug().Str("service", "camera").Str("detections", p).
+		logger.Debug().Str("service", "camera").
+			Str("detections", p).
 			Msg("sent to detections topic")
 		qtErr := s.mqttClient.Publish(topic, p)
 		if qtErr != nil {
-			logger.Error().Str("service", "camera").Str("thing", "mqttPublish").
+			logger.Error().Str("service", "camera").
+				Str("thing", "mqttPublish").
 				Err(qtErr).Send()
 			return
 		}
@@ -260,7 +275,9 @@ func (s *CameraService) receiveFrame(ctx context.Context, deviceId int64, frameP
 		// Update MQTT via FrameRepo
 		repoErr := s.FrameRepo.PublishFrame(frame, framePath, strconv.Itoa(int(deviceId)))
 		if repoErr != nil {
-			logger.Error().Msgf("CameraService.startStream.FrameRepo.PublishFrame threw an error %v", repoErr)
+			logger.Error().
+				Str("CameraService", "startStream.FrameRepo.PublishFrame").
+				Err(repoErr).Send()
 		}
 		return
 	}()

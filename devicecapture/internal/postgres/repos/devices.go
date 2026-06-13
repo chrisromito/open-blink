@@ -38,7 +38,7 @@ func (dr *PgDeviceRepo) GetDevice(ctx context.Context, deviceId int64) (devices.
 	if d.ID == 0 {
 		return devices.Device{}, ErrNotFound
 	}
-	return dr.dbToDomain(d), nil
+	return DeviceDbToDomain(d), nil
 }
 
 // ListDevices PgDeviceRepo implements devices.DeviceRepository
@@ -49,7 +49,7 @@ func (dr *PgDeviceRepo) ListDevices(ctx context.Context) ([]devices.Device, erro
 	}
 	var dslice []devices.Device
 	for _, d := range value {
-		idevice := dr.dbToDomain(d)
+		idevice := DeviceDbToDomain(d)
 		dslice = append(dslice, idevice)
 	}
 	return dslice, nil
@@ -95,6 +95,14 @@ func (dr *PgDeviceRepo) DeleteTestDevices(ctx context.Context) error {
 }
 
 func (dr *PgDeviceRepo) dbToDomain(d db.Device) devices.Device {
+	return devices.Device{
+		ID:        d.ID,
+		Name:      d.Name,
+		DeviceUrl: d.DeviceUrl,
+	}
+}
+
+func DeviceDbToDomain(d db.Device) devices.Device {
 	return devices.Device{
 		ID:        d.ID,
 		Name:      d.Name,

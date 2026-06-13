@@ -47,6 +47,19 @@ services:
     depends_on:
       - postgres
     env_file: .env.example
+  migrate:
+    image: ghcr.io/kukymbr/goose-docker:3.27.0
+    environment:
+      - GOOSE_DBSTRING=postgres://postgres:postgres@postgres:5432/openblink
+      - GOOSE_DRIVER=postgres
+    command: up
+    networks:
+      - openblink
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./devicecapture/internal/postgres/migrations:/migrations
   postgres:
     image: postgres:16-alpine3.22
     environment:

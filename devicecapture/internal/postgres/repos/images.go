@@ -22,7 +22,7 @@ func (ir *PgImageRepo) CreateImage(ctx context.Context, params devices.CreateIma
 	if err != nil {
 		return devices.DeviceImage{}, err
 	}
-	return ir.toDomain(dbImg), nil
+	return ImageDbToDomain(dbImg), nil
 }
 
 func (ir *PgImageRepo) GetImages(ctx context.Context, deviceId int64) ([]devices.DeviceImage, error) {
@@ -33,12 +33,12 @@ func (ir *PgImageRepo) GetImages(ctx context.Context, deviceId int64) ([]devices
 	}
 	var list []devices.DeviceImage
 	for _, img := range imgs {
-		list = append(list, ir.toDomain(img))
+		list = append(list, ImageDbToDomain(img))
 	}
 	return list, nil
 }
 
-func (ir *PgImageRepo) toDomain(dbImg db.DeviceImage) devices.DeviceImage {
+func ImageDbToDomain(dbImg db.DeviceImage) devices.DeviceImage {
 	return devices.DeviceImage{
 		ID:        dbImg.ID,
 		DeviceID:  dbImg.DeviceID,
