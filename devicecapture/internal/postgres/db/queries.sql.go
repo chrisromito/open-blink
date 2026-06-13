@@ -78,7 +78,7 @@ const createImage = `-- name: CreateImage :one
 
 INSERT INTO device_images (id, device_id, created_at, image_path)
 VALUES (DEFAULT, $1, DEFAULT, $2)
-RETURNING id, device_id, created_at, image_path, archived
+RETURNING id, device_id, created_at, image_path
 `
 
 type CreateImageParams struct {
@@ -95,7 +95,6 @@ func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (Devic
 		&i.DeviceID,
 		&i.CreatedAt,
 		&i.ImagePath,
-		&i.Archived,
 	)
 	return i, err
 }
@@ -288,7 +287,7 @@ func (q *Queries) GetDeviceHeartBeats(ctx context.Context, arg GetDeviceHeartBea
 }
 
 const getDeviceImages = `-- name: GetDeviceImages :many
-SELECT id, device_id, created_at, image_path, archived
+SELECT id, device_id, created_at, image_path
 FROM device_images
 WHERE device_id = $1
 `
@@ -307,7 +306,6 @@ func (q *Queries) GetDeviceImages(ctx context.Context, deviceID int64) ([]Device
 			&i.DeviceID,
 			&i.CreatedAt,
 			&i.ImagePath,
-			&i.Archived,
 		); err != nil {
 			return nil, err
 		}

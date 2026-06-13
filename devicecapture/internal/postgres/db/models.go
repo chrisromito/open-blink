@@ -35,5 +35,4 @@ type DeviceImage struct {
 	DeviceID  int64     `db:"device_id" json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	ImagePath string    `db:"image_path" json:"image_path"`
-	Archived  bool      `db:"archived" json:"archived"`
 }

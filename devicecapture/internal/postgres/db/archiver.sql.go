@@ -10,10 +10,9 @@ import (
 )
 
 const getArchiveTargets = `-- name: GetArchiveTargets :many
-SELECT id, device_id, created_at, image_path, archived
+SELECT id, device_id, created_at, image_path
 FROM device_images
-WHERE archived = FALSE
-  AND created_at >= (NOW() - INTERVAL '7 days')
+WHERE created_at >= (NOW() - INTERVAL '7 days')
 ORDER BY created_at
 LIMIT 500
 `
@@ -35,7 +34,6 @@ func (q *Queries) GetArchiveTargets(ctx context.Context) ([]DeviceImage, error) 
 			&i.DeviceID,
 			&i.CreatedAt,
 			&i.ImagePath,
-			&i.Archived,
 		); err != nil {
 			return nil, err
 		}
@@ -52,8 +50,7 @@ DELETE
 FROM device_images
 WHERE id IN (SELECT id
              FROM device_images
-             WHERE archived = FALSE
-               AND created_at >= (NOW() - INTERVAL '7 days')
+             WHERE created_at >= (NOW() - INTERVAL '7 days')
              ORDER BY created_at
              LIMIT 500)
 `
@@ -65,8 +62,7 @@ func (q *Queries) PurgeOldestTargets(ctx context.Context) error {
 
 const setArchived = `-- name: SetArchived :exec
 UPDATE device_images
-SET image_path = $1,
-    archived   = TRUE
+SET image_path = $1
 WHERE id = $2
 `
 
