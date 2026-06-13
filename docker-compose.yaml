@@ -52,6 +52,7 @@ services:
     environment:
       - GOOSE_DBSTRING=postgres://postgres:postgres@postgres:5432/openblink
       - GOOSE_DRIVER=postgres
+    command: up
     networks:
       - openblink
     depends_on:

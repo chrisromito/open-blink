@@ -34,6 +34,7 @@ CREATE TABLE device_images
             ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT NOW() NOT NULL,
     image_path varchar(250)                           NOT NULL,
+    archived   boolean                  DEFAULT FALSE NOT NULL,
     UNIQUE (image_path)
 );
 
