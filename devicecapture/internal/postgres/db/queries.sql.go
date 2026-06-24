@@ -76,25 +76,27 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 
 const createImage = `-- name: CreateImage :one
 
-INSERT INTO device_images (id, device_id, created_at, image_path)
-VALUES (DEFAULT, $1, DEFAULT, $2)
-RETURNING id, device_id, created_at, image_path
+INSERT INTO device_images (id, device_id, created_at, image_path, annotated_path)
+VALUES (DEFAULT, $1, DEFAULT, $2, $3)
+RETURNING id, device_id, created_at, image_path, annotated_path
 `
 
 type CreateImageParams struct {
-	DeviceID  int64  `db:"device_id" json:"device_id"`
-	ImagePath string `db:"image_path" json:"image_path"`
+	DeviceID      int64  `db:"device_id" json:"device_id"`
+	ImagePath     string `db:"image_path" json:"image_path"`
+	AnnotatedPath string `db:"annotated_path" json:"annotated_path"`
 }
 
 // ---------- Images
 func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (DeviceImage, error) {
-	row := q.db.QueryRow(ctx, createImage, arg.DeviceID, arg.ImagePath)
+	row := q.db.QueryRow(ctx, createImage, arg.DeviceID, arg.ImagePath, arg.AnnotatedPath)
 	var i DeviceImage
 	err := row.Scan(
 		&i.ID,
 		&i.DeviceID,
 		&i.CreatedAt,
 		&i.ImagePath,
+		&i.AnnotatedPath,
 	)
 	return i, err
 }
@@ -287,7 +289,7 @@ func (q *Queries) GetDeviceHeartBeats(ctx context.Context, arg GetDeviceHeartBea
 }
 
 const getDeviceImages = `-- name: GetDeviceImages :many
-SELECT id, device_id, created_at, image_path
+SELECT id, device_id, created_at, image_path, annotated_path
 FROM device_images
 WHERE device_id = $1
 `
@@ -306,6 +308,7 @@ func (q *Queries) GetDeviceImages(ctx context.Context, deviceID int64) ([]Device
 			&i.DeviceID,
 			&i.CreatedAt,
 			&i.ImagePath,
+			&i.AnnotatedPath,
 		); err != nil {
 			return nil, err
 		}

@@ -10,7 +10,7 @@ import (
 )
 
 const getArchiveTargets = `-- name: GetArchiveTargets :many
-SELECT id, device_id, created_at, image_path
+SELECT id, device_id, created_at, image_path, annotated_path
 FROM device_images
 WHERE created_at >= (NOW() - INTERVAL '7 days')
 ORDER BY created_at
@@ -34,6 +34,7 @@ func (q *Queries) GetArchiveTargets(ctx context.Context) ([]DeviceImage, error) 
 			&i.DeviceID,
 			&i.CreatedAt,
 			&i.ImagePath,
+			&i.AnnotatedPath,
 		); err != nil {
 			return nil, err
 		}

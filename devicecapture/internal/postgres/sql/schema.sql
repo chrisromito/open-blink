@@ -34,7 +34,9 @@ CREATE TABLE device_images
             ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT NOW() NOT NULL,
     image_path varchar(250)                           NOT NULL,
-    UNIQUE (image_path)
+    annotated_path varchar(250),
+    UNIQUE (image_path),
+    UNIQUE(annotated_path)
 );
 
 CREATE INDEX device_images__created_at_idx

@@ -2,6 +2,7 @@ package detection
 
 import (
 	"context"
+
 	"devicecapture/internal/domain/receiver"
 )
 

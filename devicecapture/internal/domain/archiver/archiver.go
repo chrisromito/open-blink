@@ -2,11 +2,12 @@ package archiver
 
 import (
 	"context"
+
 	"devicecapture/internal/domain/devices"
 )
 
 type SetArchivedParams struct {
-	ID        int64  `db:"id" json:"id"`
+	ID        int64  `db:"id"         json:"id"`
 	ImagePath string `db:"image_path" json:"image_path"`
 }
 

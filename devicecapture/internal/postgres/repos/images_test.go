@@ -1,10 +1,11 @@
 package repos
 
 import (
+	"testing"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_Create_Images(t *testing.T) {

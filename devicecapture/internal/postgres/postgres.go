@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+
 	"devicecapture/internal/postgres/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -17,6 +18,15 @@ type AppDb struct {
 
 func NewAppDb() *AppDb {
 	return &AppDb{}
+}
+
+func NewTestAppDb() (*AppDb, error) {
+	appDb := NewAppDb()
+	err := appDb.Connect(testDatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	return appDb, nil
 }
 
 func (a *AppDb) Connect(url string) error {
@@ -51,12 +61,3 @@ func (a *AppDb) GetQueries() *db.Queries {
 }
 
 const testDatabaseURL = "postgres://postgres:postgres@postgres:5432/test_openblink"
-
-func NewTestAppDb() (*AppDb, error) {
-	appDb := NewAppDb()
-	err := appDb.Connect(testDatabaseURL)
-	if err != nil {
-		return nil, err
-	}
-	return appDb, nil
-}

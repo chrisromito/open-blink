@@ -3,16 +3,20 @@ package receiver
 import (
 	"fmt"
 	"image"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 )
 
-// FrameRepository interface for storing frames
+// FrameRepository interface for storing and broadcasting frames
 type FrameRepository interface {
 	StartSession(deviceId string) (*CaptureSession, error)
 	EndSession(session *CaptureSession) error
+	// PublishFrame publishes the [Frame] so subscribers can consume it
 	PublishFrame(frame Frame, framePath string, deviceId string) error
+	// WriteFrame writes the [Frame] to the FileSystem
+	WriteFrame(frame Frame, fp string) error
 }
 
 type Frame struct {
@@ -67,12 +71,13 @@ func (cr *CaptureSession) IntID() (int64, error) {
 }
 
 func FramePath(prefix string, session *CaptureSession, frame Frame) string {
-	return fmt.Sprintf(
-		"%s/%s-%v/output-%s-%v.jpeg",
-		prefix,
-		session.DeviceID,
-		session.StartedAt,
-		session.DeviceID,
-		frame.Timestamp,
-	)
+	csDir := fmt.Sprintf("%s-%v", session.DeviceID, session.StartedAt)
+	fileName := fmt.Sprintf("output-%s-%v.jpeg", session.DeviceID, frame.Timestamp)
+	return filepath.Join(prefix, csDir, fileName)
+}
+
+func AnnotatedPath(prefix string, session *CaptureSession, frame Frame) string {
+	csDir := fmt.Sprintf("%s-%v", session.DeviceID, session.StartedAt)
+	fileName := fmt.Sprintf("annotated-%s-%v.jpeg", session.DeviceID, frame.Timestamp)
+	return filepath.Join(prefix, csDir, fileName)
 }

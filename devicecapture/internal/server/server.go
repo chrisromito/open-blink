@@ -1,17 +1,18 @@
 package server
 
 import (
-	"devicecapture/internal/app"
-	"devicecapture/internal/camera"
-	"devicecapture/internal/domain/devices"
-	"devicecapture/internal/logger"
 	"encoding/json"
-	"github.com/mattn/go-mjpeg"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"devicecapture/internal/app"
+	"devicecapture/internal/camera"
+	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/logger"
+	"github.com/mattn/go-mjpeg"
 )
 
 func HomePageHandler() http.HandlerFunc {
@@ -85,6 +86,7 @@ func StreamProxyHandler(a *app.App) http.HandlerFunc {
 
 		// Camera proxy
 		api := camera.NewApi(deviceId, device.DeviceUrl)
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

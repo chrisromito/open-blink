@@ -15,7 +15,14 @@ type Deps struct {
 	HistoryRepo   history.DetectionHistoryRepo
 }
 
-func NewDeps(dev devices.DeviceRepository, hb devices.HeartbeatRepo, detRepo devices.DetectionRepo, img devices.ImageRepo, fr receiver.FrameRepository, hr history.DetectionHistoryRepo) *Deps {
+func NewDeps(
+	dev devices.DeviceRepository,
+	hb devices.HeartbeatRepo,
+	detRepo devices.DetectionRepo,
+	img devices.ImageRepo,
+	fr receiver.FrameRepository,
+	hr history.DetectionHistoryRepo,
+) *Deps {
 	return &Deps{
 		DeviceRepo:    dev,
 		HeartbeatRepo: hb,

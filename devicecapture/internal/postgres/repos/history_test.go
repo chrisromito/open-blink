@@ -1,13 +1,14 @@
 package repos
 
 import (
+	"testing"
+	"time"
+
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/history"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 func Test_Pg_History_Repo(t *testing.T) {
@@ -26,9 +27,27 @@ func Test_Pg_History_Repo(t *testing.T) {
 	})
 	a.NoError(iErr)
 	params := []devices.CreateDetectionParams{
-		{DeviceID: testDevice.ID, Label: "person", Confidence: 0.5, Bbox: validBbox, ImageID: &testImage.ID},
-		{DeviceID: testDevice.ID, Label: "truck", Confidence: 0.35, Bbox: validBbox, ImageID: &testImage.ID},
-		{DeviceID: testDevice.ID, Label: "cat", Confidence: 0.75, Bbox: validBbox, ImageID: &testImage.ID},
+		{
+			DeviceID:   testDevice.ID,
+			Label:      "person",
+			Confidence: 0.5,
+			Bbox:       validBbox,
+			ImageID:    &testImage.ID,
+		},
+		{
+			DeviceID:   testDevice.ID,
+			Label:      "truck",
+			Confidence: 0.35,
+			Bbox:       validBbox,
+			ImageID:    &testImage.ID,
+		},
+		{
+			DeviceID:   testDevice.ID,
+			Label:      "cat",
+			Confidence: 0.75,
+			Bbox:       validBbox,
+			ImageID:    &testImage.ID,
+		},
 	}
 
 	for _, p := range params {
@@ -63,32 +82,45 @@ func Test_Pg_History_Repo(t *testing.T) {
 				message:   "query for person yields results",
 			},
 			{
-
-				params:    history.DetectionWithImageParams{Label: []string{"person"}, DeviceID: testDevice.ID},
+				params: history.DetectionWithImageParams{
+					Label:    []string{"person"},
+					DeviceID: testDevice.ID,
+				},
 				wantEmpty: false,
 				message:   "deviceID filter is additive",
 			},
 			{
-
-				params:    history.DetectionWithImageParams{Label: []string{"person", "fake"}, DeviceID: 0, CreatedAt: hourAgo},
+				params: history.DetectionWithImageParams{
+					Label:     []string{"person", "fake"},
+					DeviceID:  0,
+					CreatedAt: hourAgo,
+				},
 				wantEmpty: false,
 				message:   "label parameters are ORd",
 			},
 			{
-
-				params:    history.DetectionWithImageParams{Label: []string{"nonexistent", "fake"}, DeviceID: 0, CreatedAt: hourAgo},
+				params: history.DetectionWithImageParams{
+					Label:     []string{"nonexistent", "fake"},
+					DeviceID:  0,
+					CreatedAt: hourAgo,
+				},
 				wantEmpty: true,
 				message:   "label parameters are ORd",
 			},
 			{
-
-				params:    history.DetectionWithImageParams{Label: []string{"person"}, DeviceID: -10},
+				params: history.DetectionWithImageParams{
+					Label:    []string{"person"},
+					DeviceID: -10,
+				},
 				wantEmpty: true,
 				message:   "deviceID filter is additive",
 			},
 			{
-
-				params:    history.DetectionWithImageParams{Label: []string{"person"}, DeviceID: testDevice.ID, CreatedAt: now.Add(48 * time.Hour)},
+				params: history.DetectionWithImageParams{
+					Label:     []string{"person"},
+					DeviceID:  testDevice.ID,
+					CreatedAt: now.Add(48 * time.Hour),
+				},
 				wantEmpty: true,
 				message:   "created at excludes future dates",
 			},
@@ -104,7 +136,6 @@ func Test_Pg_History_Repo(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 func getTestConfig(videoPath string) *config.Config {

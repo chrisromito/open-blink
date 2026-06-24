@@ -17,7 +17,10 @@ func NewMockDetection() *MockDetection {
 	}
 }
 
-func (d *MockDetection) GetDetectionsAfter(_ context.Context, params QueryParams) ([]Detection, error) {
+func (d *MockDetection) GetDetectionsAfter(
+	_ context.Context,
+	params QueryParams,
+) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -31,7 +34,10 @@ func (d *MockDetection) GetDetectionsAfter(_ context.Context, params QueryParams
 	return result, nil
 }
 
-func (d *MockDetection) GetDeviceDetectionsAfter(_ context.Context, params QueryParams) ([]Detection, error) {
+func (d *MockDetection) GetDeviceDetectionsAfter(
+	_ context.Context,
+	params QueryParams,
+) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -45,7 +51,10 @@ func (d *MockDetection) GetDeviceDetectionsAfter(_ context.Context, params Query
 	return result, nil
 }
 
-func (d *MockDetection) CreateDetection(_ context.Context, params CreateDetectionParams) (Detection, error) {
+func (d *MockDetection) CreateDetection(
+	_ context.Context,
+	params CreateDetectionParams,
+) (Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	detection := Detection{
@@ -60,7 +69,10 @@ func (d *MockDetection) CreateDetection(_ context.Context, params CreateDetectio
 	return detection, nil
 }
 
-func (d *MockDetection) CreateDetections(ctx context.Context, params []CreateDetectionParams) ([]Detection, error) {
+func (d *MockDetection) CreateDetections(
+	ctx context.Context,
+	params []CreateDetectionParams,
+) ([]Detection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var value []Detection

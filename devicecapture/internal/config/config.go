@@ -1,9 +1,10 @@
 package config
 
 import (
-	"devicecapture/internal/logger"
 	"os"
 	"strings"
+
+	"devicecapture/internal/logger"
 )
 
 type Config struct {

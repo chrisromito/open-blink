@@ -2,12 +2,13 @@ package repos
 
 import (
 	"context"
+	"errors"
+	"strconv"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
-	"errors"
 	"github.com/jackc/pgx/v5"
-	"strconv"
 )
 
 // PgDeviceRepo implements devices.DeviceRepository
@@ -56,8 +57,14 @@ func (dr *PgDeviceRepo) ListDevices(ctx context.Context) ([]devices.Device, erro
 }
 
 // CreateDevice PgDeviceRepo implements devices.DeviceRepository
-func (dr *PgDeviceRepo) CreateDevice(ctx context.Context, params devices.CreateDeviceParams) (devices.Device, error) {
-	d, err := dr.queries.CreateDevice(ctx, db.CreateDeviceParams{Name: params.Name, DeviceUrl: params.DeviceUrl})
+func (dr *PgDeviceRepo) CreateDevice(
+	ctx context.Context,
+	params devices.CreateDeviceParams,
+) (devices.Device, error) {
+	d, err := dr.queries.CreateDevice(
+		ctx,
+		db.CreateDeviceParams{Name: params.Name, DeviceUrl: params.DeviceUrl},
+	)
 	if err != nil {
 		return devices.Device{}, err
 	}
@@ -68,7 +75,10 @@ func (dr *PgDeviceRepo) CreateDevice(ctx context.Context, params devices.CreateD
 	}, nil
 }
 
-func (dr *PgDeviceRepo) UpdateDevice(ctx context.Context, params devices.UpdateDeviceParams) (devices.Device, error) {
+func (dr *PgDeviceRepo) UpdateDevice(
+	ctx context.Context,
+	params devices.UpdateDeviceParams,
+) (devices.Device, error) {
 	err := dr.queries.UpdateDevice(ctx, db.UpdateDeviceParams{
 		ID:        params.ID,
 		Name:      params.Name,

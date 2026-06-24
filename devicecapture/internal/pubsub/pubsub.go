@@ -1,8 +1,9 @@
 package pubsub
 
 import (
-	"devicecapture/internal/logger"
 	"fmt"
+
+	"devicecapture/internal/logger"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
@@ -29,6 +30,19 @@ func BrokerHelper(cId, broker, user, password string) (MqttClient, error) {
 	}, nil
 }
 
+type ClientOptions struct {
+	Broker   string
+	ClientID string
+	User     string
+	Password string
+}
+
+type MqttClient struct {
+	Client mqtt.Client
+	opts   *ClientOptions
+	topics []string
+}
+
 func NewMqttClient(cId, broker, user, password string) (MqttClient, error) {
 	opt := ClientOptions{
 		ClientID: cId,
@@ -44,19 +58,6 @@ func NewMqttClient(cId, broker, user, password string) (MqttClient, error) {
 		return c, err
 	}
 	return c, nil
-}
-
-type ClientOptions struct {
-	Broker   string
-	ClientID string
-	User     string
-	Password string
-}
-
-type MqttClient struct {
-	Client mqtt.Client
-	opts   *ClientOptions
-	topics []string
 }
 
 func (m *MqttClient) Valid() bool {
@@ -93,7 +94,6 @@ func (m *MqttClient) Connect() error {
 	if m.Client != nil {
 		return fmt.Errorf("client already connected")
 	}
-	// This method creates some default options for us, most notably it sets the auto reconnect option to be true, and the default port to `1883`. Auto reconnect is really useful in IOT applications as the internet connection may not always be extremely strong.
 	mqOptions := mqtt.NewClientOptions()
 	mqOptions.AddBroker(m.opts.Broker)
 	mqOptions.SetClientID(m.opts.ClientID)
@@ -106,7 +106,8 @@ func (m *MqttClient) Connect() error {
 	mqOptions.OnConnectionLost = func(c mqtt.Client, err error) {
 		panic(err)
 	}
-	logger.Debug().Msgf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
+	logger.Debug().
+		Msgf("MqttClient: Connecting to broker: %s, clientID: %s", m.opts.Broker, m.opts.ClientID)
 	mClient := mqtt.NewClient(mqOptions)
 	// We have to create the connection to the broker manually and verify that there is no error.
 	if token := mClient.Connect(); token.Wait() && token.Error() != nil {
@@ -120,7 +121,8 @@ func (m *MqttClient) Connect() error {
 	return nil
 }
 
-// Publish publishes a message on a specific topic. An error is returned if there was a problem. This function will publish with a QOS of 0.
+// Publish publishes a message on a specific topic. An error is returned if there was a problem.
+// This function will publish with a QOS of 0.
 func (m *MqttClient) Publish(topic string, payload interface{}) error {
 	if m.Client == nil {
 		return fmt.Errorf("client not connected")
@@ -131,7 +133,9 @@ func (m *MqttClient) Publish(topic string, payload interface{}) error {
 	return nil
 }
 
-// Subscribe creates a subscription for the passed topic. The callBack function is used to process any messages that the client receives on that topic. The subscription created will have a QOS of 2.
+// Subscribe creates a subscription for the passed topic.
+// The callBack function is used to process any messages that the client receives on that topic.
+// The subscription created will have a QOS of 2.
 func (m *MqttClient) Subscribe(topic string, f mqtt.MessageHandler) error {
 	if token := m.Client.Subscribe(topic, 2, f); token.Wait() && token.Error() != nil {
 		return token.Error()

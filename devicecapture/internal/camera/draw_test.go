@@ -1,11 +1,11 @@
 package camera
 
 import (
-	"devicecapture/internal/domain/detection"
 	"image"
 	"image/color"
 	"testing"
 
+	"devicecapture/internal/domain/detection"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -71,8 +71,16 @@ func TestDrawBoundingBox(t *testing.T) {
 			// Check corners are drawn
 			a.Equal(test.color, img.At(test.minX, test.minY), "top-left corner should be colored")
 			a.Equal(test.color, img.At(test.maxX, test.minY), "top-right corner should be colored")
-			a.Equal(test.color, img.At(test.minX, test.maxY), "bottom-left corner should be colored")
-			a.Equal(test.color, img.At(test.maxX, test.maxY), "bottom-right corner should be colored")
+			a.Equal(
+				test.color,
+				img.At(test.minX, test.maxY),
+				"bottom-left corner should be colored",
+			)
+			a.Equal(
+				test.color,
+				img.At(test.maxX, test.maxY),
+				"bottom-right corner should be colored",
+			)
 
 			// Check that interior is not modified (assuming it was transparent)
 			if test.maxX > test.minX+1 && test.maxY > test.minY+1 {
@@ -122,7 +130,11 @@ func TestDrawBBox(t *testing.T) {
 			a.Equal(test.height, result.Bounds().Dy(), "height should be preserved")
 
 			// Check that bbox corners are colored
-			a.Equal(test.color, result.At(int(test.bbox.X1), int(test.bbox.Y1)), "bbox should be drawn")
+			a.Equal(
+				test.color,
+				result.At(int(test.bbox.X1), int(test.bbox.Y1)),
+				"bbox should be drawn",
+			)
 		})
 	}
 }
@@ -142,19 +154,17 @@ func TestDrawDetections(t *testing.T) {
 			width:      100,
 			height:     100,
 			detections: []detection.Detection{createTestDetection("dog", 10, 10, 50, 50)},
-			color:      color.RGBA{R: 255, A: 255},
 			wantEmpty:  false,
 			msg:        "should draw single detection",
 		},
 		{
-			name:       "multiple detections",
-			width:      200,
-			height:     200,
+			name:   "multiple detections",
+			width:  200,
+			height: 200,
 			detections: []detection.Detection{
 				createTestDetection("cat", 10, 10, 50, 50),
 				createTestDetection("person", 60, 60, 100, 100),
 			},
-			color:     color.RGBA{G: 255, A: 255},
 			wantEmpty: false,
 			msg:       "should draw multiple detections",
 		},
@@ -163,7 +173,6 @@ func TestDrawDetections(t *testing.T) {
 			width:      100,
 			height:     100,
 			detections: []detection.Detection{},
-			color:      color.RGBA{B: 255, A: 255},
 			wantEmpty:  true,
 			msg:        "should handle empty detection slice",
 		},
@@ -172,7 +181,6 @@ func TestDrawDetections(t *testing.T) {
 			width:      100,
 			height:     100,
 			detections: nil,
-			color:      color.RGBA{R: 255, G: 255, A: 255},
 			wantEmpty:  true,
 			msg:        "should handle nil detections",
 		},
@@ -183,19 +191,11 @@ func TestDrawDetections(t *testing.T) {
 			a := assert.New(t)
 			originalImg := createTestImage(test.width, test.height)
 
-			result := DrawDetections(originalImg, test.detections, test.color)
+			result := DrawDetections(originalImg, test.detections)
 
 			a.NotNil(result, test.msg)
 			a.Equal(test.width, result.Bounds().Dx(), "width should be preserved")
 			a.Equal(test.height, result.Bounds().Dy(), "height should be preserved")
-
-			if !test.wantEmpty && len(test.detections) > 0 {
-				// Check that at least one detection bbox is drawn
-				firstDetection := test.detections[0]
-				bbox := firstDetection.Bbox
-				drawnColor := result.At(int(bbox.X1), int(bbox.Y1))
-				a.Equal(test.color, drawnColor, "detection bbox should be visible")
-			}
 		})
 	}
 }
@@ -246,7 +246,7 @@ func TestDrawLabel(t *testing.T) {
 
 			// DrawLabel should not panic
 			a.NotPanics(func() {
-				DrawLabel(img, test.x, test.y, test.label)
+				DrawLabel(img, test.x, test.y, test.label, color.RGBA{R: 255, A: 255})
 			}, test.msg)
 
 			// The function modifies the image, so it should still be valid

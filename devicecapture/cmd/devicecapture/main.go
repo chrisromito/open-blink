@@ -2,6 +2,11 @@ package main
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"devicecapture/internal/app"
 	"devicecapture/internal/archive"
 	"devicecapture/internal/camera"
@@ -16,15 +21,16 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper("go-server-"+uuid.New().String(), conf.MqttHost, conf.MqttUser, conf.MqttPassword)
+	client, cerr := pubsub.BrokerHelper(
+		"go-server-"+uuid.New().String(),
+		conf.MqttHost,
+		conf.MqttUser,
+		conf.MqttPassword,
+	)
 	if cerr != nil {
 		logger.Fatal().Err(cerr).Msgf("Error creating MQTT client: %v", cerr)
 	}
@@ -80,9 +86,11 @@ func main() {
 	select {
 	case <-appCtx.Done():
 		logger.Error().Msgf("devicecapture exiting because appCtx.Done()")
+
 		return
 	case <-sigChan:
 		logger.Error().Msgf("devicecapture exiting because sigChan")
+
 		return
 	}
 }
@@ -100,6 +108,7 @@ func run(ctx context.Context, a *app.App) error {
 		return qtErr
 	}
 	archiveTicker := time.NewTicker(4 * time.Hour)
+	snapshotTicker := time.NewTicker(30 * time.Second)
 
 	for {
 		select {
@@ -130,7 +139,7 @@ func run(ctx context.Context, a *app.App) error {
 					Err(archiveErr).
 					Send()
 			}
-		default:
+		case <-snapshotTicker.C:
 			err := loopDevices(ctx, a, false)
 			if err != nil {
 				logger.Error().
@@ -141,7 +150,7 @@ func run(ctx context.Context, a *app.App) error {
 			}
 			logger.Debug().Str("fn", "main").
 				Msg("sleeping...")
-			time.Sleep(30 * time.Second)
+			//time.Sleep(30 * time.Second)
 		}
 	}
 }
@@ -195,6 +204,7 @@ func loopDevices(ctx context.Context, a *app.App, motionDetected bool) error {
 	if motionDetected {
 		return captureStreams(ctx, deviceList, cs)
 	}
+
 	return captureSnapshots(ctx, deviceList, cs)
 }
 

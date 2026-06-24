@@ -2,12 +2,13 @@
 package pubsub
 
 import (
-	"devicecapture/internal/config"
-	"devicecapture/internal/domain/receiver"
-	"devicecapture/internal/logger"
 	"fmt"
 	"image/jpeg"
 	"os"
+
+	"devicecapture/internal/config"
+	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
 )
 
 // MqttReceiver implements receiver.FrameRepository
@@ -35,19 +36,10 @@ func (r *MqttReceiver) StartSession(deviceId string) (*receiver.CaptureSession, 
 	return s, nil
 }
 
-func (r *MqttReceiver) checkSessionDir(session *receiver.CaptureSession) error {
-	dir := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
-	_, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (r *MqttReceiver) EndSession(session *receiver.CaptureSession) error {
+	if session == nil {
+		return nil
+	}
 	topic := fmt.Sprintf("end-stream/%s", session.DeviceID)
 	payload := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
 	err := r.client.Publish(topic, payload)
@@ -60,6 +52,23 @@ func (r *MqttReceiver) EndSession(session *receiver.CaptureSession) error {
 // PublishFrame publishes Frames (JSON) to "image/<deviceID>"
 func (r *MqttReceiver) PublishFrame(frame receiver.Frame, framePath string, deviceId string) error {
 	logger.Debug().Msgf("mqttreceiver.PublishFrame")
+	payload, err := receiver.FrameJson(r.serverIp, deviceId, framePath, frame)
+	if err != nil {
+		logger.Error().Msgf("error from FrameJson for %s", framePath)
+		return err
+	}
+	topic := fmt.Sprintf("image/%s", deviceId)
+	err = r.client.Publish(topic, payload)
+	logger.Debug().Msgf("Writing device %s frame to topic: %v ", deviceId, topic)
+	if err != nil {
+		logger.Error().Msgf("error publishing device %s frame to topic %v", deviceId, topic)
+		return err
+	}
+	return nil
+}
+
+// WriteFrame writes [receiver.Frame] to the FileSystem
+func (r *MqttReceiver) WriteFrame(frame receiver.Frame, framePath string) error {
 	var fp = framePath
 	logger.Debug().Msgf("Writing frame to file: %v at %s", frame.Timestamp, fp)
 	f, err := os.Create(fp)
@@ -75,16 +84,17 @@ func (r *MqttReceiver) PublishFrame(frame receiver.Frame, framePath string, devi
 		logger.Error().Msgf("error encoding frame to JPEG for %s", fp)
 		return err2
 	}
-	payload, err3 := receiver.FrameJson(r.serverIp, deviceId, framePath, frame)
-	if err3 != nil {
-		logger.Error().Msgf("error from FrameJson for %s", fp)
-		return err3
-	}
-	topic := fmt.Sprintf("image/%s", deviceId)
-	err = r.client.Publish(topic, payload)
-	logger.Debug().Msgf("Writing device %s frame to topic: %v ", deviceId, topic)
-	if err != nil {
-		logger.Error().Msgf("error publishing device %s frame to topic %v", deviceId, topic)
+	return nil
+}
+
+func (r *MqttReceiver) checkSessionDir(session *receiver.CaptureSession) error {
+	dir := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

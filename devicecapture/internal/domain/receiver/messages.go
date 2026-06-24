@@ -1,11 +1,13 @@
 package receiver
 
 import (
-	"devicecapture/internal/domain/devices"
 	"encoding/json"
 	"time"
+
+	"devicecapture/internal/domain/devices"
 )
 
+// FrameMsg shape of MQTT messages that get published to image/<device_id>
 type FrameMsg struct {
 	DeviceId  string `json:"device_id"`
 	FileName  string `json:"file_name"`
@@ -37,60 +39,34 @@ func FrameJson(thisIp string, deviceId string, filePath string, fr Frame) (strin
 	return string(value), nil
 }
 
-// DetectionMsg shape of MQTT messages that get published to "/detection/<int:device_id>"
-//type DetectionMsg struct {
-//	ID         int64       `db:"id" json:"id"`
-//	DeviceID   int64       `db:"device_id" json:"device_id"`
-//	ImageID    *int64      `db:"image_id" json:"image_id"`
-//	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
-//	Label      string      `db:"label" json:"label"`
-//	Confidence float64     `db:"confidence" json:"confidence"`
-//	Bbox       [][]float64 `db:"bbox" json:"bbox"`
-//	Url        string      `json:"url"`
-//}
-//
-//func DetectionToMsg(thisIp string, filePath string, d devices.Detection) (string, error) {
-//	var msg = DetectionMsg{
-//		ID:         d.ID,
-//		DeviceID:   d.DeviceID,
-//		ImageID:    d.ImageID,
-//		CreatedAt:  d.CreatedAt,
-//		Label:      d.Label,
-//		Confidence: d.Confidence,
-//		Bbox:       d.Bbox,
-//		Url:        thisIp + filePath,
-//	}
-//	value, err := json.Marshal(msg)
-//	if err != nil {
-//		return "", err
-//	}
-//	return string(value), nil
-//}
-
-// DetectionsMsg shape of MQTT messages that get published to /detections/IMAGE_ID
+// DetectionsMsg shape of MQTT messages that get published to /detections/<device_id>
 type DetectionsMsg struct {
-	ID         int64     `db:"id" json:"id"`
-	DeviceID   int64     `db:"device_id" json:"device_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	Url        string        `json:"url"`
+	ID         int64         `db:"id"         json:"id"`
+	DeviceID   int64         `db:"device_id"  json:"device_id"`
+	CreatedAt  time.Time     `db:"created_at" json:"created_at"`
+	Url        string        `db:"url"        json:"url"`
 	Detections []QtDetection `db:"detections" json:"detections"`
 }
 
 // QtDetection shape of nested `detections` within a DetectionsMsg
 type QtDetection struct {
-	ID         int64       `db:"id" json:"id"`
-	Label      string      `db:"label" json:"label"`
+	ID         int64       `db:"id"         json:"id"`
+	Label      string      `db:"label"      json:"label"`
 	Confidence float64     `db:"confidence" json:"confidence"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
+	Bbox       [][]float64 `db:"bbox"       json:"bbox"`
 }
 
 // DetectionsToMsg get JSON serialized string representation of detections
 func DetectionsToMsg(thisIp string, i devices.DeviceImage, ds []devices.Detection) (string, error) {
+	p := i.AnnotatedPath
+	if p == "" {
+		p = i.ImagePath
+	}
 	var msg = DetectionsMsg{
 		ID:         i.ID,
 		DeviceID:   i.DeviceID,
 		CreatedAt:  i.CreatedAt,
-		Url:        thisIp + i.ImagePath,
+		Url:        thisIp + p,
 		Detections: detectionsToMqtt(ds),
 	}
 	value, err := json.Marshal(msg)
@@ -112,4 +88,3 @@ func detectionsToMqtt(ds []devices.Detection) []QtDetection {
 	}
 	return accum
 }
-

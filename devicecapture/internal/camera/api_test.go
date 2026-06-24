@@ -2,13 +2,6 @@ package camera
 
 import (
 	"bytes"
-	"devicecapture/internal/domain/receiver"
-	"devicecapture/internal/logger"
-	"github.com/mattn/go-mjpeg"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/math/fixed"
-
 	"context"
 	"errors"
 	"image"
@@ -18,6 +11,13 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
+	"github.com/mattn/go-mjpeg"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
 )
 
 func TestApi_Ping_Success(t *testing.T) {
@@ -130,7 +130,6 @@ func TestApi_Stream_ContextCancellation(t *testing.T) {
 }
 
 func newTestServer(ctx context.Context) *httptest.Server {
-
 	testProxy := func(stream *mjpeg.Stream) {
 		for {
 			time.Sleep(200 * time.Millisecond)

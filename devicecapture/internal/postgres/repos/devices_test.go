@@ -1,12 +1,11 @@
 package repos
 
 import (
+	"testing"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"math/rand"
-	"testing"
-	"time"
 )
 
 func TestCreateDevices(t *testing.T) {
@@ -30,17 +29,26 @@ func TestCreateDevices(t *testing.T) {
 		message string
 	}{
 		{
-			params:  devices.CreateDeviceParams{Name: generateRandomString(10), DeviceUrl: "http://mockdevice" + generateRandomString(10) + ":1234"},
+			params: devices.CreateDeviceParams{
+				Name:      generateRandomString(10),
+				DeviceUrl: "http://mockdevice" + generateRandomString(10) + ":1234",
+			},
 			wantErr: false,
 			message: "We can create devices with short names & urls",
 		},
 		{
-			params:  devices.CreateDeviceParams{Name: generateRandomString(10), DeviceUrl: generateRandomString(500)},
+			params: devices.CreateDeviceParams{
+				Name:      generateRandomString(10),
+				DeviceUrl: generateRandomString(500),
+			},
 			wantErr: true,
 			message: "domain URLs must be shorter than 250 characters",
 		},
 		{
-			params:  devices.CreateDeviceParams{Name: generateRandomString(500), DeviceUrl: "http://longname" + generateRandomString(10) + ":1234"},
+			params: devices.CreateDeviceParams{
+				Name:      generateRandomString(500),
+				DeviceUrl: "http://longname" + generateRandomString(10) + ":1234",
+			},
 			wantErr: true,
 			message: "domain names must be shorter than 250 characters",
 		},
@@ -88,16 +96,3 @@ func TestCreateDevices(t *testing.T) {
 //		})
 //	}
 //}
-
-// generateRandomString generates a random string of a given length using a specified character set.
-func generateRandomString(length int) string {
-	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	// Seed the random number generator using the current time for better randomness.
-	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
-}

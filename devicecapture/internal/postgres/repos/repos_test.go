@@ -2,10 +2,11 @@ package repos
 
 import (
 	"context"
-	"devicecapture/internal/logger"
-	"devicecapture/internal/postgres"
 	"os"
 	"testing"
+
+	"devicecapture/internal/logger"
+	"devicecapture/internal/postgres"
 )
 
 func TestMain(m *testing.M) {

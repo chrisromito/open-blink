@@ -1,9 +1,10 @@
 package repos
 
 import (
+	"testing"
+
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_Create_Heartbeats(t *testing.T) {
