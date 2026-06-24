@@ -6,16 +6,16 @@ import (
 )
 
 type Heartbeat struct {
-	ID        int64     `db:"id" json:"id"`
-	DeviceID  int64     `db:"device_id" json:"device_id"`
+	ID        int64     `db:"id"         json:"id"`
+	DeviceID  int64     `db:"device_id"  json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 type LatestBeatsRow struct {
-	DeviceID  int64     `db:"device_id" json:"device_id"`
+	DeviceID  int64     `db:"device_id"  json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	ID        int64     `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
+	ID        int64     `db:"id"         json:"id"`
+	Name      string    `db:"name"       json:"name"`
 	DeviceUrl string    `db:"device_url" json:"device_url"`
 }
 

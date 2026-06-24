@@ -2,12 +2,13 @@ package camera
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/pubsub"
-	"testing"
-	"time"
 )
 
 // CameraService Tests

@@ -1,11 +1,12 @@
 package repos
 
 import (
+	"testing"
+	"time"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 var validBbox = [][]float64{
@@ -29,22 +30,42 @@ func TestCreateDetection(t *testing.T) {
 		message string
 	}{
 		{
-			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9, Bbox: [][]float64{}},
+			params: devices.CreateDetectionParams{
+				DeviceID:   deviceId,
+				Label:      "dog",
+				Confidence: 0.9,
+				Bbox:       [][]float64{},
+			},
 			wantErr: false,
 			message: "bbox is not required",
 		},
 		{
-			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "dog", Confidence: 0.9, Bbox: nil},
+			params: devices.CreateDetectionParams{
+				DeviceID:   deviceId,
+				Label:      "dog",
+				Confidence: 0.9,
+				Bbox:       nil,
+			},
 			wantErr: false,
 			message: "bbox does not need to be specified at all",
 		},
 		{
-			params:  devices.CreateDetectionParams{DeviceID: deviceId, Label: "cat", Confidence: 0.85, Bbox: validBbox},
+			params: devices.CreateDetectionParams{
+				DeviceID:   deviceId,
+				Label:      "cat",
+				Confidence: 0.85,
+				Bbox:       validBbox,
+			},
 			wantErr: false,
 			message: "We can create detections for specified devices, labels, & confidences",
 		},
 		{
-			params:  devices.CreateDetectionParams{DeviceID: -5, Label: "dog", Confidence: 0.9, Bbox: validBbox},
+			params: devices.CreateDetectionParams{
+				DeviceID:   -5,
+				Label:      "dog",
+				Confidence: 0.9,
+				Bbox:       validBbox,
+			},
 			wantErr: true,
 			message: "An error is thrown if the device ID is not in the database",
 		},
@@ -79,7 +100,13 @@ func TestCreateDetection(t *testing.T) {
 		})
 		a.NotNil(img)
 		a.NoError(imgErr)
-		params := devices.CreateDetectionParams{DeviceID: td.ID, Label: "dog", Confidence: 0.9, ImageID: &img.ID, Bbox: validBbox}
+		params := devices.CreateDetectionParams{
+			DeviceID:   td.ID,
+			Label:      "dog",
+			Confidence: 0.9,
+			ImageID:    &img.ID,
+			Bbox:       validBbox,
+		}
 		record, err := repo.CreateDetection(ctx, params)
 		a.NoError(err)
 		a.NotNil(record)
@@ -113,13 +140,19 @@ func TestGetDetectionsAfter(t *testing.T) {
 	successDate := time.Now().Add(-48 * time.Hour)
 
 	t.Run("test_future_date_gives_empty_results", func(t *testing.T) {
-		value, err := repo.GetDetectionsAfter(t.Context(), devices.QueryParams{DeviceID: int64(-5), CreatedAt: failDate, ImageID: nil})
+		value, err := repo.GetDetectionsAfter(
+			t.Context(),
+			devices.QueryParams{DeviceID: int64(-5), CreatedAt: failDate, ImageID: nil},
+		)
 		assert.NoError(t, err)
 		assert.Empty(t, value)
 	})
 
 	t.Run("test_past_date_gives_non_empty_results", func(t *testing.T) {
-		value, err := repo.GetDetectionsAfter(t.Context(), devices.QueryParams{DeviceID: int64(-5), CreatedAt: successDate, ImageID: nil})
+		value, err := repo.GetDetectionsAfter(
+			t.Context(),
+			devices.QueryParams{DeviceID: int64(-5), CreatedAt: successDate, ImageID: nil},
+		)
 		assert.NotEmpty(t, value, "GetDetectionsAfter yields results")
 		assert.NoError(t, err, "GetDetectionsAfter does not require valid DeviceIDs")
 	})

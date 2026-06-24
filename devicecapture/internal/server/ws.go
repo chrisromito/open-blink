@@ -2,17 +2,17 @@ package server
 
 import (
 	"context"
-	"devicecapture/internal/app"
-	"devicecapture/internal/logger"
-	"devicecapture/internal/pubsub"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/google/uuid"
 	"net/http"
 	"sync"
 	"time"
 
+	"devicecapture/internal/app"
+	"devicecapture/internal/logger"
+	"devicecapture/internal/pubsub"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 )
 
 var wsOpts = websocket.AcceptOptions{InsecureSkipVerify: true}
@@ -20,7 +20,6 @@ var wsOpts = websocket.AcceptOptions{InsecureSkipVerify: true}
 func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 	// See example: https://pkg.go.dev/github.com/coder/websocket#example-package-WriteOnly
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		logger.Debug().Msg("ws /detections")
 		// Setup websocket stuff
 		c, err := websocket.Accept(w, r, &wsOpts)
@@ -48,9 +47,11 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		defer func(qtClient *pubsub.MqttClient) {
 			_ = qtClient.Close()
 		}(&qtClient)
+
 		var wg sync.WaitGroup
 
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
 			err = qtClient.Subscribe("detections/#", func(client mqtt.Client, msg mqtt.Message) {

@@ -1,0 +1,33 @@
+# See the dedicated "version" documentation section.
+version: "2"
+linters:
+  # Default set of linters.
+  # The value can be:
+  # - `standard`: the "Default" linters https://golangci-lint.run/docs/linters/#all-linters
+  # - `all`: enables all linters by default.
+  # - `none`: disables all linters by default.
+  # - `fast`: enables only linters considered as "fast" (`golangci-lint help linters --json | jq '[ .[] | select(.fast==true) ] | map(.name)'`).
+  # Default: standard
+  default: fast
+  enable:
+    - gomodguard_v2
+  disable:
+    - mnd
+    - wsl
+    - misspell
+    - gomodguard
+    - depguard
+    - testpackage
+    - nlreturn
+    - godot
+    - funlen
+formatters:
+  # Enable specific formatter.
+  # Default: [] (uses standard Go formatting)
+  enable:
+    - gci
+    - gofmt
+#    - gofumpt
+    - goimports
+    - golines
+    - swaggo

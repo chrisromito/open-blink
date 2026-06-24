@@ -1,12 +1,13 @@
 package server
 
 import (
-	"devicecapture/internal/app"
-	"devicecapture/internal/domain/history"
-	"devicecapture/internal/logger"
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"devicecapture/internal/app"
+	"devicecapture/internal/domain/history"
+	"devicecapture/internal/logger"
 )
 
 func GetRecentLabelsHandler(a *app.App) http.HandlerFunc {

@@ -3,7 +3,7 @@ LABEL authors="chris"
 
 WORKDIR /usr/src/app
 
-FROM golang:1.25.0 AS build
+FROM golang:1.26.0 AS build
 WORKDIR /usr/src/build
 
 COPY ./go.mod go.sum ./

@@ -1,14 +1,15 @@
 package pubsub
 
 import (
-	"devicecapture/internal/config"
-	"devicecapture/internal/domain/receiver"
-	"github.com/stretchr/testify/assert"
 	"image"
 	"image/color"
 	"os"
 	"strings"
 	"testing"
+
+	"devicecapture/internal/config"
+	"devicecapture/internal/domain/receiver"
+	"github.com/stretchr/testify/assert"
 )
 
 func getTestConfig(videoPath string) *config.Config {
@@ -108,7 +109,13 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 	session, err := rec.StartSession(deviceId)
 	a.NoError(err)
 	a.NotNil(session)
-	a.Equalf(session.DeviceID, deviceId, "Expected receiver session domain ID %s, got %s", deviceId, session.DeviceID)
+	a.Equalf(
+		session.DeviceID,
+		deviceId,
+		"Expected receiver session domain ID %s, got %s",
+		deviceId,
+		session.DeviceID,
+	)
 	a.NotEqual(session.StartedAt, 0, "StartedAt should not be zero")
 }
 
@@ -144,8 +151,8 @@ func BenchmarkFrameJson(b *testing.B) {
 	deviceId := "bench-domain"
 	fileName := "/path/to/bench.jpg"
 	frame := createTestFrame(1234567890)
-
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		_, err := receiver.FrameJson("", deviceId, fileName, frame)
 		if err != nil {

@@ -2,9 +2,10 @@ package repos
 
 import (
 	"context"
+	"time"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
-	"time"
 )
 
 // PgHeartbeatRepo implements devices.HeartbeatRepo
@@ -19,7 +20,10 @@ func NewPgHeartbeatRepo(queries *db.Queries) *PgHeartbeatRepo {
 }
 
 // GetDeviceHeartBeats get all heartbeats for a given domain
-func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(ctx context.Context, deviceId int64) ([]devices.Heartbeat, error) {
+func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(
+	ctx context.Context,
+	deviceId int64,
+) ([]devices.Heartbeat, error) {
 	hbs, err := hb.queries.GetDeviceHeartBeats(ctx, db.GetDeviceHeartBeatsParams{
 		DeviceID:  deviceId,
 		CreatedAt: startOfDay(),
@@ -36,7 +40,10 @@ func (hb *PgHeartbeatRepo) GetDeviceHeartBeats(ctx context.Context, deviceId int
 }
 
 // HeartBeatsAfter get all heartbeats after a given time
-func (hb *PgHeartbeatRepo) HeartBeatsAfter(ctx context.Context, createdAt time.Time) ([]devices.Heartbeat, error) {
+func (hb *PgHeartbeatRepo) HeartBeatsAfter(
+	ctx context.Context,
+	createdAt time.Time,
+) ([]devices.Heartbeat, error) {
 	hbs, err := hb.queries.HeartBeatsAfter(ctx, createdAt)
 	if err != nil {
 		return nil, err
@@ -64,7 +71,10 @@ func (hb *PgHeartbeatRepo) LatestBeats(ctx context.Context) ([]devices.LatestBea
 }
 
 // RecordBeat create a DeviceHeartBeat record for a given domain, using the current timestamp
-func (hb *PgHeartbeatRepo) RecordBeat(ctx context.Context, deviceId int64) (devices.Heartbeat, error) {
+func (hb *PgHeartbeatRepo) RecordBeat(
+	ctx context.Context,
+	deviceId int64,
+) (devices.Heartbeat, error) {
 	record, err := hb.queries.RecordBeat(ctx, deviceId)
 	if err != nil {
 		return devices.Heartbeat{}, err

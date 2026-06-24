@@ -114,8 +114,8 @@ WHERE device_id = $1;
 ------------ Images
 
 -- name: CreateImage :one
-INSERT INTO device_images (id, device_id, created_at, image_path)
-VALUES (DEFAULT, @device_id, DEFAULT, @image_path)
+INSERT INTO device_images (id, device_id, created_at, image_path, annotated_path)
+VALUES (DEFAULT, @device_id, DEFAULT, @image_path, @annotated_path)
 RETURNING *;
 
 -- name: GetDeviceImages :many

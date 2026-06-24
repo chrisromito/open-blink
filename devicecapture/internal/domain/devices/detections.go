@@ -6,27 +6,27 @@ import (
 )
 
 type Detection struct {
-	ID         int64       `db:"id" json:"id"`
-	DeviceID   int64       `db:"device_id" json:"device_id"`
-	ImageID    *int64      `db:"image_id" json:"image_id"`
+	ID         int64       `db:"id"         json:"id"`
+	DeviceID   int64       `db:"device_id"  json:"device_id"`
+	ImageID    *int64      `db:"image_id"   json:"image_id"`
 	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
-	Label      string      `db:"label" json:"label"`
+	Label      string      `db:"label"      json:"label"`
 	Confidence float64     `db:"confidence" json:"confidence"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
+	Bbox       [][]float64 `db:"bbox"       json:"bbox"`
 }
 
 type CreateDetectionParams struct {
-	DeviceID   int64       `db:"device_id" json:"device_id"`
-	Label      string      `db:"label" json:"label"`
+	DeviceID   int64       `db:"device_id"  json:"device_id"`
+	Label      string      `db:"label"      json:"label"`
 	Confidence float64     `db:"confidence" json:"confidence"`
-	ImageID    *int64      `db:"image_id" json:"image_id"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
+	ImageID    *int64      `db:"image_id"   json:"image_id"`
+	Bbox       [][]float64 `db:"bbox"       json:"bbox"`
 }
 
 type QueryParams struct {
-	DeviceID  int64     `db:"device_id" json:"device_id"`
+	DeviceID  int64     `db:"device_id"  json:"device_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	ImageID   *int64    `db:"image_id" json:"image_id"`
+	ImageID   *int64    `db:"image_id"   json:"image_id"`
 }
 
 type DetectionRepo interface {

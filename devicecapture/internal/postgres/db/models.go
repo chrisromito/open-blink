@@ -31,8 +31,9 @@ type DeviceHeartbeat struct {
 }
 
 type DeviceImage struct {
-	ID        int64     `db:"id" json:"id"`
-	DeviceID  int64     `db:"device_id" json:"device_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	ImagePath string    `db:"image_path" json:"image_path"`
+	ID            int64     `db:"id" json:"id"`
+	DeviceID      int64     `db:"device_id" json:"device_id"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	ImagePath     string    `db:"image_path" json:"image_path"`
+	AnnotatedPath string    `db:"annotated_path" json:"annotated_path"`
 }

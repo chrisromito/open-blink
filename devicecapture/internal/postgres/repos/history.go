@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/history"
 	"devicecapture/internal/postgres/db"
@@ -25,7 +26,10 @@ func (h *PgDetectionHistoryRepo) GetRecentLabels(ctx context.Context) ([]string,
 	return labels, err
 }
 
-func (h *PgDetectionHistoryRepo) GetDetectionImagesByLabel(ctx context.Context, params history.DetectionWithImageParams) ([]history.DetectionWithImage, error) {
+func (h *PgDetectionHistoryRepo) GetDetectionImagesByLabel(
+	ctx context.Context,
+	params history.DetectionWithImageParams,
+) ([]history.DetectionWithImage, error) {
 	rows, err := h.queries.GetDetectionImagesByLabel(ctx, db.GetDetectionImagesByLabelParams{
 		Label:     params.Label,
 		DeviceID:  params.DeviceID,
@@ -41,7 +45,9 @@ func (h *PgDetectionHistoryRepo) GetDetectionImagesByLabel(ctx context.Context, 
 	return result, nil
 }
 
-func (h *PgDetectionHistoryRepo) dbToDomain(dwi db.GetDetectionImagesByLabelRow) history.DetectionWithImage {
+func (h *PgDetectionHistoryRepo) dbToDomain(
+	dwi db.GetDetectionImagesByLabelRow,
+) history.DetectionWithImage {
 	return history.DetectionWithImage{
 		ID:         dwi.ID,
 		CreatedAt:  dwi.CreatedAt,

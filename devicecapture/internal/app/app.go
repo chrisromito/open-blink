@@ -19,7 +19,12 @@ type App struct {
 }
 
 // NewApp create an App, under the assumption that the MqttClient & AppDb are initialized/connected
-func NewApp(conf *config.Config, mqttClient *pubsub.MqttClient, db *postgres.AppDb, deps *domain.Deps) *App {
+func NewApp(
+	conf *config.Config,
+	mqttClient *pubsub.MqttClient,
+	db *postgres.AppDb,
+	deps *domain.Deps,
+) *App {
 	return &App{
 		Conf:       conf,
 		MqttClient: mqttClient,

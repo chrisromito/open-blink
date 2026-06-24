@@ -2,11 +2,12 @@ package archive
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+
 	"devicecapture/internal/config"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
-	"os"
-	"path/filepath"
 )
 
 // Archivist Deletes images from the FS and the DB
@@ -22,14 +23,16 @@ func NewArchivist(c *config.Config, q *db.Queries) *Archivist {
 	}
 }
 
-
 func (a *Archivist) Run(ctx context.Context) error {
-	ds, err := a.queries.GetArchiveTargets(ctx)
+	ds, dbErr := a.queries.GetArchiveTargets(ctx)
+	if dbErr != nil {
+		return dbErr
+	}
 	var paths []string
 	for _, d := range ds {
 		paths = append(paths, d.ImagePath)
 	}
-	err = a.DeleteAll(paths)
+	err := a.DeleteAll(paths)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
 )
@@ -14,10 +15,14 @@ func NewPgImageRepo(q *db.Queries) *PgImageRepo {
 	return &PgImageRepo{queries: q}
 }
 
-func (ir *PgImageRepo) CreateImage(ctx context.Context, params devices.CreateImageParams) (devices.DeviceImage, error) {
+func (ir *PgImageRepo) CreateImage(
+	ctx context.Context,
+	params devices.CreateImageParams,
+) (devices.DeviceImage, error) {
 	dbImg, err := ir.queries.CreateImage(ctx, db.CreateImageParams{
-		DeviceID:  params.DeviceID,
-		ImagePath: params.ImagePath,
+		DeviceID:      params.DeviceID,
+		ImagePath:     params.ImagePath,
+		AnnotatedPath: params.AnnotatedPath,
 	})
 	if err != nil {
 		return devices.DeviceImage{}, err
@@ -25,7 +30,10 @@ func (ir *PgImageRepo) CreateImage(ctx context.Context, params devices.CreateIma
 	return ImageDbToDomain(dbImg), nil
 }
 
-func (ir *PgImageRepo) GetImages(ctx context.Context, deviceId int64) ([]devices.DeviceImage, error) {
+func (ir *PgImageRepo) GetImages(
+	ctx context.Context,
+	deviceId int64,
+) ([]devices.DeviceImage, error) {
 	imgs, err := ir.queries.GetDeviceImages(ctx, deviceId)
 	if err != nil {
 		var empty []devices.DeviceImage
@@ -40,9 +48,10 @@ func (ir *PgImageRepo) GetImages(ctx context.Context, deviceId int64) ([]devices
 
 func ImageDbToDomain(dbImg db.DeviceImage) devices.DeviceImage {
 	return devices.DeviceImage{
-		ID:        dbImg.ID,
-		DeviceID:  dbImg.DeviceID,
-		CreatedAt: dbImg.CreatedAt,
-		ImagePath: dbImg.ImagePath,
+		ID:            dbImg.ID,
+		DeviceID:      dbImg.DeviceID,
+		CreatedAt:     dbImg.CreatedAt,
+		ImagePath:     dbImg.ImagePath,
+		AnnotatedPath: dbImg.AnnotatedPath,
 	}
 }

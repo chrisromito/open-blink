@@ -3,17 +3,18 @@ package camera
 import (
 	"bytes"
 	"context"
-	"devicecapture/internal/domain/receiver"
-	"devicecapture/internal/logger"
 	"errors"
 	"fmt"
-	"github.com/mattn/go-mjpeg"
 	"image"
 	"image/jpeg"
 	"io"
 	"net/http"
 	"sync"
 	"time"
+
+	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/logger"
+	"github.com/mattn/go-mjpeg"
 )
 
 // Api provides an interface for the network interactions between open-blink and deployed CameraDevices
@@ -89,7 +90,7 @@ func (a *Api) Snapshot(ctx context.Context) (receiver.Frame, error) {
 		Timeout: 2 * time.Second,
 	}
 	url := a.Url + "/snapshot"
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	empty := receiver.Frame{}
 	if err != nil {
 		return empty, err
@@ -125,7 +126,7 @@ func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	client := &http.Client{}
 	streamUrl := a.Url + "/stream"
 	logger.Debug().Msgf("camera.api -> stream -> Starting stream from %s", streamUrl)
-	req, err := http.NewRequestWithContext(ctx, "GET", streamUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, streamUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,6 @@ func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 				return streamErr
 			}
 		}
-
 	}
 }
 

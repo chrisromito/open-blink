@@ -17,7 +17,8 @@ SELECT detections.id,
        detections.confidence,
        detections.bbox,
        detections.device_id,
-       device_images.image_path
+       device_images.image_path,
+       device_images.annotated_path
 FROM device_images
          JOIN detections ON device_images.id = detections.image_id
 WHERE label ILIKE ANY ($1::text[])
@@ -46,13 +47,14 @@ type GetDetectionImagesByLabelParams struct {
 }
 
 type GetDetectionImagesByLabelRow struct {
-	ID         int64       `db:"id" json:"id"`
-	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
-	Label      string      `db:"label" json:"label"`
-	Confidence float64     `db:"confidence" json:"confidence"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
-	DeviceID   int64       `db:"device_id" json:"device_id"`
-	ImagePath  string      `db:"image_path" json:"image_path"`
+	ID            int64       `db:"id" json:"id"`
+	CreatedAt     time.Time   `db:"created_at" json:"created_at"`
+	Label         string      `db:"label" json:"label"`
+	Confidence    float64     `db:"confidence" json:"confidence"`
+	Bbox          [][]float64 `db:"bbox" json:"bbox"`
+	DeviceID      int64       `db:"device_id" json:"device_id"`
+	ImagePath     string      `db:"image_path" json:"image_path"`
+	AnnotatedPath string      `db:"annotated_path" json:"annotated_path"`
 }
 
 func (q *Queries) GetDetectionImagesByLabel(ctx context.Context, arg GetDetectionImagesByLabelParams) ([]GetDetectionImagesByLabelRow, error) {
@@ -72,6 +74,7 @@ func (q *Queries) GetDetectionImagesByLabel(ctx context.Context, arg GetDetectio
 			&i.Bbox,
 			&i.DeviceID,
 			&i.ImagePath,
+			&i.AnnotatedPath,
 		); err != nil {
 			return nil, err
 		}

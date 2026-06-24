@@ -13,7 +13,8 @@ SELECT detections.id,
        detections.confidence,
        detections.bbox,
        detections.device_id,
-       device_images.image_path
+       device_images.image_path,
+       device_images.annotated_path
 FROM device_images
          JOIN detections ON device_images.id = detections.image_id
 WHERE label ILIKE ANY (@label::text[])

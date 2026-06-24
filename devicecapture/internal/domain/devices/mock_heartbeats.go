@@ -17,7 +17,10 @@ func NewMockHeartbeat() *MockHeartbeat {
 	}
 }
 
-func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceId int64) ([]Heartbeat, error) {
+func (h *MockHeartbeat) GetDeviceHeartBeats(
+	_ context.Context,
+	deviceId int64,
+) ([]Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -31,7 +34,10 @@ func (h *MockHeartbeat) GetDeviceHeartBeats(_ context.Context, deviceId int64) (
 	return result, nil
 }
 
-func (h *MockHeartbeat) HeartBeatsAfter(_ context.Context, createdAt time.Time) ([]Heartbeat, error) {
+func (h *MockHeartbeat) HeartBeatsAfter(
+	_ context.Context,
+	createdAt time.Time,
+) ([]Heartbeat, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -52,7 +58,8 @@ func (h *MockHeartbeat) LatestBeats(_ context.Context) ([]LatestBeatsRow, error)
 	// Find the latest heartbeat for each device
 	deviceLatest := make(map[int64]Heartbeat)
 	for _, heartbeat := range h.hbs {
-		if latest, exists := deviceLatest[heartbeat.DeviceID]; !exists || heartbeat.CreatedAt.After(latest.CreatedAt) {
+		if latest, exists := deviceLatest[heartbeat.DeviceID]; !exists ||
+			heartbeat.CreatedAt.After(latest.CreatedAt) {
 			deviceLatest[heartbeat.DeviceID] = heartbeat
 		}
 	}

@@ -2,13 +2,14 @@ package detection
 
 import (
 	"context"
-	"devicecapture/internal/config"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"time"
+
+	"devicecapture/internal/config"
 )
 
 // ObjectDetectionService implements ObjectDetector
@@ -21,7 +22,10 @@ func NewObjectDetectionService(c *config.Config) ObjectDetectionService {
 }
 
 // DetectObjectsForImage ObjectDetectionService implements ObjectDetector
-func (o ObjectDetectionService) DetectObjectsForImage(_ context.Context, req Req) ([]Detection, error) {
+func (o ObjectDetectionService) DetectObjectsForImage(
+	_ context.Context,
+	req Req,
+) ([]Detection, error) {
 	value := make(chan []Detection, 1)
 	go func() {
 		response, err := o.sendImage(req.Frame.Buf)
