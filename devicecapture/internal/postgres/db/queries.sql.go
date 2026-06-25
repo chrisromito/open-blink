@@ -82,9 +82,9 @@ RETURNING id, device_id, created_at, image_path, annotated_path
 `
 
 type CreateImageParams struct {
-	DeviceID      int64  `db:"device_id" json:"device_id"`
-	ImagePath     string `db:"image_path" json:"image_path"`
-	AnnotatedPath string `db:"annotated_path" json:"annotated_path"`
+	DeviceID      int64   `db:"device_id" json:"device_id"`
+	ImagePath     string  `db:"image_path" json:"image_path"`
+	AnnotatedPath *string `db:"annotated_path" json:"annotated_path"`
 }
 
 // ---------- Images

@@ -57,3 +57,7 @@ sql:
             go_type:
               type: "int64"
               pointer: true
+          - column: "device_images.annotated_path"
+            go_type:
+              type: "string"
+              pointer: true

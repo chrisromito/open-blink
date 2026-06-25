@@ -54,7 +54,7 @@ type GetDetectionImagesByLabelRow struct {
 	Bbox          [][]float64 `db:"bbox" json:"bbox"`
 	DeviceID      int64       `db:"device_id" json:"device_id"`
 	ImagePath     string      `db:"image_path" json:"image_path"`
-	AnnotatedPath string      `db:"annotated_path" json:"annotated_path"`
+	AnnotatedPath *string     `db:"annotated_path" json:"annotated_path"`
 }
 
 func (q *Queries) GetDetectionImagesByLabel(ctx context.Context, arg GetDetectionImagesByLabelParams) ([]GetDetectionImagesByLabelRow, error) {

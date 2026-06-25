@@ -19,10 +19,11 @@ func (ir *PgImageRepo) CreateImage(
 	ctx context.Context,
 	params devices.CreateImageParams,
 ) (devices.DeviceImage, error) {
+
 	dbImg, err := ir.queries.CreateImage(ctx, db.CreateImageParams{
 		DeviceID:      params.DeviceID,
 		ImagePath:     params.ImagePath,
-		AnnotatedPath: params.AnnotatedPath,
+		AnnotatedPath: &params.AnnotatedPath,
 	})
 	if err != nil {
 		return devices.DeviceImage{}, err
@@ -52,6 +53,6 @@ func ImageDbToDomain(dbImg db.DeviceImage) devices.DeviceImage {
 		DeviceID:      dbImg.DeviceID,
 		CreatedAt:     dbImg.CreatedAt,
 		ImagePath:     dbImg.ImagePath,
-		AnnotatedPath: dbImg.AnnotatedPath,
+		AnnotatedPath: *dbImg.AnnotatedPath,
 	}
 }

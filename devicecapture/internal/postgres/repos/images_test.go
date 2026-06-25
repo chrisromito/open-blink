@@ -27,8 +27,9 @@ func Test_Create_Images(t *testing.T) {
 	}{
 		{
 			params: devices.CreateImageParams{
-				DeviceID:  testDevice.ID,
-				ImagePath: pathPrefix + generateRandomString(30) + "test1.jpeg",
+				DeviceID:      testDevice.ID,
+				ImagePath:     pathPrefix + generateRandomString(30) + "test1.jpeg",
+				AnnotatedPath: pathPrefix + generateRandomString(30) + "test1.jpeg",
 			},
 			wantErr: false,
 			msg:     "valid params create valid images",
@@ -39,7 +40,7 @@ func Test_Create_Images(t *testing.T) {
 				ImagePath: pathPrefix + generateRandomString(30) + "test2.png",
 			},
 			wantErr: false,
-			msg:     "we do not enforce jpegs on a repo-level",
+			msg:     "devices.CreateImageParams.AnnotatedPath field is optional",
 		},
 		{
 			params: devices.CreateImageParams{
