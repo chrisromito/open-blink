@@ -43,3 +43,37 @@ func (m *MockDetectionHistory) GetDetectionImagesByLabel(
 		},
 	}, nil
 }
+
+func (m *MockDetectionHistory) GetDetectionTimeline(
+	_ context.Context,
+	_ DetectionTimelineParams,
+) ([]DetectionEvent, error) {
+	return []DetectionEvent{
+		{
+			ID:        1,
+			CreatedAt: time.Now().Add(-1 * time.Hour),
+			DeviceID:  1,
+			ImageUrl:  "http://localhost:8080/mock/car.jpg",
+			Detections: []EventMeta{
+				{
+					ID:         123,
+					Label:      "car",
+					Confidence: 0.95,
+				},
+			},
+		},
+		{
+			ID:        2,
+			CreatedAt: time.Now().Add(-2 * time.Hour),
+			DeviceID:  2,
+			ImageUrl:  "http://localhost:8080/mock/person.jpg",
+			Detections: []EventMeta{
+				{
+					ID:         234,
+					Label:      "person",
+					Confidence: 0.87,
+				},
+			},
+		},
+	}, nil
+}

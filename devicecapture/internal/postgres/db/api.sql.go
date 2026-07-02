@@ -10,6 +10,25 @@ import (
 	"time"
 )
 
+const getDetectionCount = `-- name: GetDetectionCount :one
+SELECT COUNT(device_images.id)
+FROM device_images
+WHERE (
+          CASE
+              WHEN $1::bigint = 0
+                  THEN device_images.device_id IS NOT NULL
+              ELSE device_images.device_id = $1
+              END
+          )
+`
+
+func (q *Queries) GetDetectionCount(ctx context.Context, dollar_1 int64) (int64, error) {
+	row := q.db.QueryRow(ctx, getDetectionCount, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getDetectionImagesByLabel = `-- name: GetDetectionImagesByLabel :many
 SELECT detections.id,
        detections.created_at,
@@ -75,6 +94,80 @@ func (q *Queries) GetDetectionImagesByLabel(ctx context.Context, arg GetDetectio
 			&i.DeviceID,
 			&i.ImagePath,
 			&i.AnnotatedPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDetectionTimeline = `-- name: GetDetectionTimeline :many
+SELECT device_images.id::bigint as id,
+       detections.image_id::bigint as image_id,
+       device_images.image_path,
+       device_images.annotated_path,
+       device_images.created_at,
+       device_images.device_id::bigint as device_id,
+       detections.label,
+       detections.confidence,
+       detections.id::bigint as detection_id
+FROM device_images
+         RIGHT OUTER JOIN detections ON detections.image_id = device_images.id
+WHERE (
+          CASE
+              WHEN $1::bigint = 0
+                  THEN detections.device_id IS NOT NULL
+              ELSE detections.device_id = $1
+              END
+          )
+ORDER BY device_images.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetDetectionTimelineParams struct {
+	Column1 int64 `db:"column_1" json:"column_1"`
+	Limit   int32 `db:"limit" json:"limit"`
+	Offset  int32 `db:"offset" json:"offset"`
+}
+
+type GetDetectionTimelineRow struct {
+	ID            int64     `db:"id" json:"id"`
+	ImageID       int64     `db:"image_id" json:"image_id"`
+	ImagePath     string    `db:"image_path" json:"image_path"`
+	AnnotatedPath *string   `db:"annotated_path" json:"annotated_path"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	DeviceID      int64     `db:"device_id" json:"device_id"`
+	Label         string    `db:"label" json:"label"`
+	Confidence    float64   `db:"confidence" json:"confidence"`
+	DetectionID   int64     `db:"detection_id" json:"detection_id"`
+}
+
+// -------------------------------
+// Timeline API
+// -------------------------------
+func (q *Queries) GetDetectionTimeline(ctx context.Context, arg GetDetectionTimelineParams) ([]GetDetectionTimelineRow, error) {
+	rows, err := q.db.Query(ctx, getDetectionTimeline, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDetectionTimelineRow{}
+	for rows.Next() {
+		var i GetDetectionTimelineRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ImageID,
+			&i.ImagePath,
+			&i.AnnotatedPath,
+			&i.CreatedAt,
+			&i.DeviceID,
+			&i.Label,
+			&i.Confidence,
+			&i.DetectionID,
 		); err != nil {
 			return nil, err
 		}

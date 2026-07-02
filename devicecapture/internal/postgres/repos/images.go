@@ -19,7 +19,6 @@ func (ir *PgImageRepo) CreateImage(
 	ctx context.Context,
 	params devices.CreateImageParams,
 ) (devices.DeviceImage, error) {
-
 	dbImg, err := ir.queries.CreateImage(ctx, db.CreateImageParams{
 		DeviceID:      params.DeviceID,
 		ImagePath:     params.ImagePath,

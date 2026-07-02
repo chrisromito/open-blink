@@ -125,6 +125,7 @@ func run(ctx context.Context, a *app.App) error {
 					Bool("motionDetected", true).
 					Err(err).
 					Send()
+				return err
 			}
 			logger.Debug().Str("fn", "run").
 				Msg("captured streams, continuing loop")
@@ -147,6 +148,7 @@ func run(ctx context.Context, a *app.App) error {
 					Str("target", "loopDevices").
 					Bool("motionDetected", false).
 					Err(err).Send()
+				return err
 			}
 			logger.Debug().Str("fn", "main").
 				Msg("sleeping...")

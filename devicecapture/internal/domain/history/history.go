@@ -23,6 +23,27 @@ type DetectionWithImageParams struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
+// EventMeta is a lightweight version of devices.Detection
+type EventMeta struct {
+	ID         int64   `db:"id"         json:"id"`
+	Label      string  `db:"label"      json:"label"`
+	Confidence float64 `db:"confidence" json:"confidence"`
+}
+
+// DetectionEvent is a DeviceImage + EventMeta slice
+type DetectionEvent struct {
+	ID         int64       `db:"id"         json:"id"`
+	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
+	DeviceID   int64       `db:"device_id"  json:"device_id"`
+	ImageUrl   string      `db:"image_url"  json:"image_url"`
+	Detections []EventMeta `db:"detections" json:"detections"`
+}
+
+type DetectionTimelineParams struct {
+	Page     int
+	DeviceID int64
+}
+
 // DetectionHistoryRepo Describes how we retrieve DetectionImages from the persistence layer
 type DetectionHistoryRepo interface {
 	GetRecentLabels(ctx context.Context) ([]string, error)
@@ -32,4 +53,9 @@ type DetectionHistoryRepo interface {
 		ctx context.Context,
 		params DetectionWithImageParams,
 	) ([]DetectionWithImage, error)
+
+	GetDetectionTimeline(
+		ctx context.Context,
+		params DetectionTimelineParams,
+	) ([]DetectionEvent, error)
 }
