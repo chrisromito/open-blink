@@ -54,6 +54,25 @@ func DetectionViewHandler() http.HandlerFunc {
 	}
 }
 
+func TimelineViewHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug().Msgf("TimelineViewHandler - Request: %s %s", r.Method, r.URL.Path)
+
+		filePath := "/usr/src/app/static/timeline-view.html"
+
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			logger.Debug().Msgf("File does not exist: %s", filePath)
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+
+		logger.Debug().Msgf("Serving file: %s", filePath)
+		logger.Debug().Msgf("TimelineViewHandler")
+		http.ServeFile(w, r, filePath)
+	}
+}
+
 // StreamProxyHandler /image-stream/{id}
 func StreamProxyHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

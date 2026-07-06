@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+	"slices"
 
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/history"
@@ -45,6 +46,74 @@ func (h *PgDetectionHistoryRepo) GetDetectionImagesByLabel(
 	return result, nil
 }
 
+var pageSize = int32(100)
+
+func (h *PgDetectionHistoryRepo) GetDetectionTimeline(
+	ctx context.Context,
+	params history.DetectionTimelineParams,
+) ([]history.DetectionEvent, error) {
+	page := int32(params.Page)
+	if page < 1 {
+		page = 1
+	}
+	dbParam := db.GetDetectionTimelineParams{
+		Column1: params.DeviceID,
+		Limit:   pageSize,
+		Offset:  (page - 1) * pageSize,
+	}
+	results, dbErr := h.queries.GetDetectionTimeline(ctx, dbParam)
+	if dbErr != nil {
+		return []history.DetectionEvent{}, dbErr
+	}
+	// Keep track of unique, ordered IDs
+	var ids []int64
+	// Mapping of imageID -> []history.EventMeta, pseudo group-by
+	idMetaMap := make(map[int64][]history.EventMeta)
+	// idEventMap maps imageID -> rows
+	idEventMap := make(map[int64]db.GetDetectionTimelineRow)
+
+	for _, row := range results {
+		if !slices.Contains(ids, row.ID) {
+			// Keep IDs unique and ordered
+			ids = append(ids, row.ID)
+		}
+		idMetaMap[row.ID] = append(idMetaMap[row.ID], history.EventMeta{
+			ID:         row.DetectionID,
+			Label:      row.Label,
+			Confidence: row.Confidence,
+		})
+		idEventMap[row.ID] = row
+	}
+
+	var events []history.DetectionEvent
+	for _, id := range ids {
+		row := idEventMap[id]
+		metas := idMetaMap[id]
+		events = append(events, h.dbToEventDomain(row, metas))
+	}
+	return events, nil
+}
+
+func UrlForDetection(prefix string, imagePath string, annotatedPath *string) string {
+	if annotatedPath != nil {
+		return prefix + *annotatedPath
+	}
+	return prefix + imagePath
+}
+
+func (h *PgDetectionHistoryRepo) dbToEventDomain(
+	row db.GetDetectionTimelineRow,
+	metas []history.EventMeta,
+) history.DetectionEvent {
+	return history.DetectionEvent{
+		ID:         row.ID,
+		CreatedAt:  row.CreatedAt,
+		DeviceID:   row.DeviceID,
+		ImageUrl:   UrlForDetection(h.config.ThisIp, row.ImagePath, row.AnnotatedPath),
+		Detections: metas,
+	}
+}
+
 func (h *PgDetectionHistoryRepo) dbToDomain(
 	dwi db.GetDetectionImagesByLabelRow,
 ) history.DetectionWithImage {
@@ -55,6 +124,6 @@ func (h *PgDetectionHistoryRepo) dbToDomain(
 		Confidence: dwi.Confidence,
 		Bbox:       dwi.Bbox,
 		DeviceID:   dwi.DeviceID,
-		ImageUrl:   h.config.ThisIp + dwi.ImagePath,
+		ImageUrl:   UrlForDetection(h.config.ThisIp, dwi.ImagePath, dwi.AnnotatedPath),
 	}
 }

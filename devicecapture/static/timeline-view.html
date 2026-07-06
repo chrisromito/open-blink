@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Blink: Timeline</title>
+    <style>
+        /* Responsive CSS */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0f1115;
+            /*color: #f5f7fa;*/
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            /*background-color: #1a1a1a;*/
+            color: #eeeeee;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .detections-page {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* FILTERS */
+        .filters {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 220px;
+        }
+
+        .filter-group label {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .filter-group select {
+            background: #1a1d24;
+            color: white;
+            border: 1px solid #2c313c;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 1.2rem;
+        }
+
+        .filter-group small {
+            color: #8b93a7;
+            font-size: 1rem;
+        }
+
+        /* FEED */
+        .detections-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Button Centering Wrapper */
+        .button-wrapper {
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        /* Modern Load More Button Style */
+        .load-more-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Hover Effect */
+        .load-more-btn:hover {
+            background-color: #0056b3;
+        }
+
+        /* Click Active Effect */
+        .load-more-btn:active {
+            transform: scale(0.98);
+        }
+
+        .labels {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            background: #253041;
+            color: #8ec5ff;
+            padding: 0.6rem 0.8rem;
+            border-radius: 999px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        time, .time {
+            color: #9aa3b2;
+            font-size: 1.2rem;
+        }
+
+        header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .status-msg {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+        }
+
+        .row {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .i-flex {
+            display: inline-flex;
+        }
+
+        .align-center {
+            align-content: center;
+        }
+
+        .justify-start {
+            justify-content: flex-start;
+        }
+
+        .justify-center {
+            justify-content: center;
+        }
+
+        .wrap {
+            flex-wrap: wrap;
+        }
+
+        .nowrap {
+            flex-wrap: nowrap;
+        }
+
+        .hide {
+            display: none !important;
+        }
+
+        .p-1 {
+            padding: 1rem;
+        }
+
+        .p-2 {
+            padding: 2rem;
+        }
+
+        .pt-1 {
+            padding-top: 1rem;
+        }
+
+        .pl-1 {
+            padding-left: 1rem;
+        }
+
+        .py-1 {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .px-1 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .space-around {
+            justify-content: space-around;
+        }
+
+        .space-between {
+            justify-content: space-between;
+        }
+
+        .space-evenly {
+            justify-content: space-evenly;
+        }
+
+        /* Add your own custom visual icon underneath */
+        .custom-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none; /* Allows clicks to pass through to the input hidden layer */
+        }
+
+        /*    SELECT */
+        .select {
+            width: 100%;
+            min-height: 56px;
+            padding: 16px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.23);
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.09);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 1.2rem;
+            color: #ffffff;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .select:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background-color: rgba(255, 255, 255, 0.13);
+        }
+
+        .select:focus {
+            border-color: #90caf9;
+            border-width: 2px;
+            background-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 0 0 0 1px rgba(144, 202, 249, 0.3);
+        }
+
+        .select option {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            padding: 12px 16px;
+            border: none;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+
+        .select option:checked {
+            background-color: #1976d2;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .select option:hover {
+            background-color: #404040;
+        }
+
+        /* Label styling to match Material Design */
+        label[for="label-select"] {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .select:focus + label,
+        .select:focus-within + label {
+            color: #90caf9;
+        }
+
+        /* Container for a more polished look */
+        .select-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .select-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #90caf9, transparent);
+            opacity: 0;
+            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .select-container:focus-within::after {
+            opacity: 1;
+        }
+
+
+        /* TIMELINE VIEW */
+        .timeline-view {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .timeline-viewer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: 16px;
+            background: #171a21;
+            border: 1px solid #2a2f3a;
+            border-radius: 16px;
+        }
+
+        .image-container {
+            flex: 3;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            max-height: 80vh;
+        }
+
+        .timeline-selected-image, .timeline-image {
+            width: 100%;
+            max-width: 100%;
+            height: 100%;
+            max-height: 100%;
+        }
+
+        .timeline-selection-details {
+            min-width: 300px;
+            max-width: 50%;
+            padding: 16px;
+            border-left: 1px solid #2a2f3a;
+            display: flex;
+            flex-wrap: wrap;
+            height: 100%;
+        }
+
+        .timeline-selection-details h2 {
+            margin-top: 0;
+        }
+
+        .timeline-meta {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2f3a;
+        }
+
+        .timeline-strip {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 12px;
+            background: #171a21;
+            border: 1px solid #2a2f3a;
+            border-radius: 16px;
+            flex-direction: row-reverse;
+        }
+
+        .timeline-thumb {
+            width: 120px;
+            min-width: 120px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 0.15s ease;
+        }
+
+        .timeline-thumb:hover {
+            border-color: #4c78ff;
+        }
+
+        .timeline-thumb.selected {
+            border-color: #4c78ff;
+        }
+
+        .timeline-thumb img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .timeline-thumb-info {
+            padding: 6px;
+            font-size: 0.9rem;
+        }
+
+        .timeline-thumb-time {
+            color: #8b93a7;
+        }
+
+
+        @media (max-width: 700px) {
+
+            .timeline-viewer {
+                flex-direction: column;
+            }
+
+            .timeline-thumb {
+                width: 90px;
+                min-width: 90px;
+            }
+
+            .timeline-thumb img {
+                height: 70px;
+            }
+        }
+
+        /* Style the modal container itself */
+        dialog {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            max-width: 100vw;
+            max-height: 100vh;
+            top: 0;
+            left: 0;
+        }
+
+        /* Style the native overlay behind the modal */
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(3px);
+        }
+
+        .image-modal-content {
+            width: 100%;
+            max-width: 100vw;
+            height: 100%;
+            max-height: 100vh;
+            display: flex;
+            flex-wrap: nowrap;
+        }
+
+        .image-modal-content img {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .close-x-btn {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            background: #1a1d24;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0.25rem;
+        }
+
+        .close-x-btn:hover {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="detections-page">
+    <!-- Device Selector + Future Filters -->
+    <div class="filters">
+        <div class="filter-group">
+            <label for="device-select">Devices</label>
+            <select id="device-select" class="select"></select>
+        </div>
+    </div>
+
+    <!-- Selection -->
+    <div id="selected-detection" class="timeline-viewer">
+
+        <div class="image-container">
+            <img id="main-image" src="https://picsum.photos/1200/800?1" class="timeline-selected-image">
+        </div>
+
+        <div class="timeline-selection-details">
+            <h2>Detection</h2>
+            <div class="labels">
+                <span id="label-chip" class="chip">Person</span>
+                <span id="confidence-chip" class="chip">97.2%</span>
+            </div>
+            <div class="meta-row">
+                <span class="label">Timestamp</span>
+                <span id="timestamp"></span>
+            </div>
+            <div class="meta-row">
+                <span class="label">Device</span>
+                <span id="device"></span>
+            </div>
+            <div class="meta-row">
+                <span class="label">Detection ID</span>
+                <span id="detection-id"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Thumbs    -->
+    <div id="timeline" class="timeline-strip">
+        <div class="button-wrapper timeline-thumb">
+            <button id="next-page" class="load-more-btn">
+                Load More
+            </button>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <dialog id="image-modal">
+        <div id="modal-content" class="image-modal-content">
+
+        </div>
+<!--        <button id="close-image-modal">Close</button>-->
+        <button id="close-image-modal" class="close-x-btn" aria-label="Close modal">&times;</button>
+
+    </dialog>
+</div>
+<script>
+    const deviceSelect = document.getElementById('device-select')
+    const timelineContainer = document.getElementById('timeline')
+    const nextPageBtn = document.getElementById('next-page')
+    const selectedContainer = document.getElementById('selected-detection')
+    const imgModal = document.getElementById('image-modal')
+    const modalContent = document.getElementById('modal-content')
+    const closeImgModalBtn = document.getElementById('close-image-modal')
+
+    let AppState = {
+        selectedDeviceIds: [],
+        detections: {
+            loading: false,
+            data: [],
+            page: 0
+        },
+        selectedDetection: {
+            data: null,
+            index: 0
+        }
+    }
+
+    // Run on load
+    window.addEventListener('DOMContentLoaded', initTimelineView)
+
+    // Application entrypoint
+    async function initTimelineView() {
+        // Load data before setting up event listeners
+        await initDeviceSelect()
+        await loadTimeline()
+        attachEvents()
+    }
+
+    /**
+     * Detection Timeline
+     * @returns {Promise<Awaited<*[]>>}
+     */
+    async function loadTimeline() {
+        if (AppState.detections.loading) {
+            return Promise.resolve([])
+        }
+
+        AppState.detections.loading = true
+        try {
+            const deviceParam = AppState.selectedDeviceIds
+            const fetchUrl = new URL('/api/timeline', window.location.origin)
+            if (deviceParam.length) {
+                fetchUrl.searchParams.set('device_id', deviceParam)
+            }
+            // Page starts at 0, but we request 1 on the first pass
+            const pageParam = AppState.detections.page + 1
+            fetchUrl.searchParams.set('page', String(pageParam))
+            AppState.detections.page = pageParam
+
+            const detections = await fetch(fetchUrl, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(resp => resp.json())
+            AppState.detections.data = detections
+            if (detections.length) {
+                selectDetection(0)
+            } else {
+                renderTimeline()
+            }
+            window._debugDetections = detections
+        } catch (error) {
+            console.error(error)
+        } finally {
+            AppState.detections.loading = false
+        }
+    }
+
+    function renderTimeline() {
+        const selectedIndex = AppState.selectedDetection.index || 0
+        const thumbsHtml = AppState.detections.data.map(
+            (d, i) => DetectionThumb(d, i, selectedIndex)
+        ).join('')
+        // Go up 1 in the DOM tree & insert thumbs BEFORE the "load more" button
+        nextPageBtn.parentElement.insertAdjacentHTML('beforebegin', thumbsHtml)
+    }
+
+    function DetectionThumb(detection, index, selectedIndex) {
+        const cls = index === selectedIndex ? 'selected' : ''
+        const {
+            id,
+            created_at,
+            device_id,
+            image_url,
+            detections
+        } = detection
+        const date = new Date(created_at)
+        const labels = detections.reduce((accum, d) => accum.add(d.label), new Set())
+        const labelsString = [...labels].join(', ')
+
+        return `
+            <div
+                class="timeline-thumb ${cls}"
+                data-id="${id}"
+                data-index="${index}"
+            >
+                <img src="${image_url}" alt="Detection ${id}"  />
+                <div class="thumb-info">
+                    <div>${labelsString}</div>
+                    <div class="thumb-time">
+                        <p class="timeline-thumb-time">
+                            ${formatTime(date)}
+                        </p>
+                        <p>
+                            ${formatDate(date)}
+                        </p>
+                    </div>
+                </div>
+            </div>`
+    }
+
+
+    /**
+     * Selected Detection
+     */
+    function selectDetection(index) {
+        console.log(`selectDetection ${index}`)
+        const d = {...AppState.detections.data[index]}
+        AppState.selectedDetection.index = index
+        AppState.selectedDetection.data = d
+        renderSelection(d)
+        renderTimeline()
+    }
+
+    function renderSelection(detection) {
+        selectedContainer.innerHTML = SelectedDetection(detection)
+    }
+
+    function SelectedDetection(detection) {
+        const {
+            id,
+            created_at,
+            device_id,
+            image_url,
+            detections
+        } = detection
+        // detections Array looks like: { label: string, confidence: number, bbox: [][]number }
+        if (!detection) {
+            return `<div class="image-container">No data</div>`
+        }
+        const date = new Date(created_at)
+        return `
+            <div class="image-container">
+                <img id="main-image" src="${image_url}" class="timeline-selected-image">
+            </div>
+
+            <div class="timeline-selection-details">
+                <h2>Detections</h2>
+                <div class="row meta-row py-1">
+                    <b class="label">Timestamp:</b>
+                    <span>${formatDate(date)} at ${formatTime(date)}</span>
+                </div>
+                ${SelectedEventDetections(detections)}
+            </div>
+        `
+    }
+
+
+    function SelectedEventDetections(detections) {
+        return sortByConfidence(detections, false).reduce((accum, detection) => {
+            const {id, label, confidence} = detection
+            return accum + `
+                <div class="row py-1">
+                    <div class="labels">
+                        <span class="chip">${label}: ${formatConfidence(confidence)}</span>
+                    </div>
+                    <div class="meta-row">
+                        <b class="label">Detection ID:</b>
+                        <span>${id}</span>
+                    </div>
+                </div>
+            `
+        }, '')
+    }
+
+    /**
+     * Device Select
+     *************************/
+    async function initDeviceSelect() {
+        try {
+            const response = await fetch('/api/device', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            const devices = await response.json()
+            deviceSelect.innerHTML = devices.reduce((accum, device) => {
+                return accum + `<option value="${device.id}">${device.name}</option>`
+            }, '')
+            const selectedDeviceId = devices[0]?.id ?? 1
+            deviceSelect.value = String(selectedDeviceId)
+            AppState.selectedDeviceIds = [selectedDeviceId]
+            return devices
+        } catch (error) {
+            console.error("Failed to load devices:", error)
+            deviceSelect.innerHTML = `<div class="status-msg" style="color: #ff6b6b;">Error: ${error.message}</div>`
+        }
+    }
+
+    /**
+     * Image Modal
+     *=========================*/
+    function openImageModal() {
+        if (!AppState.selectedDetection.data) {
+            return
+        }
+        const { image_url } = AppState.selectedDetection.data
+        modalContent.innerHTML = `
+            <img src="${image_url}" alt="Selected Detection Image" />
+        `
+        imgModal.show()
+    }
+
+    /**
+     * Event dispatching
+     ****************************************************/
+    function attachEvents() {
+        // Detection Thumb Clicks
+        timelineContainer.addEventListener("click", (e) => {
+            const thumb = e.target.closest(".timeline-thumb")
+            if (!(thumb && thumb.dataset.index)) {
+                return
+            }
+            selectDetection(
+                Number(thumb.dataset.index)
+            )
+        })
+
+        // Keyboard
+        document.addEventListener("keydown", e => {
+            const selectedIndex = AppState.selectedDetection.index
+            const detections = AppState.detections.data
+            if (e.key === "ArrowLeft" && selectedIndex > 0) {
+                requestAnimationFrame(() => {
+                    selectDetection(selectedIndex - 1)
+                })
+            }
+            if (e.key === "ArrowRight" && selectedIndex < detections.length - 1) {
+                requestAnimationFrame(() => {
+                    selectDetection(selectedIndex + 1)
+                })
+            }
+        })
+
+        // Selected Image Click Handler
+        selectedContainer.addEventListener('click', e => {
+            window._selectedEvent = e
+            if (e.target.id === 'main-image') {
+                openImageModal()
+            }
+        })
+
+        closeImgModalBtn.addEventListener('click', e => {
+            imgModal.close()
+        })
+
+        imgModal.addEventListener('click', ()=> imgModal.close())
+
+        nextPageBtn.addEventListener('click', loadTimeline)
+    }
+
+
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    })
+
+    function formatDate(d) {
+        return dateFormatter.format(d)
+    }
+
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric'
+    })
+
+    function formatTime(dt) {
+        return timeFormatter.format(dt)
+    }
+
+    function formatConfidence(confidence) {
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'percent'
+        })
+        return formatter.format(confidence)
+    }
+
+
+    const sortBy = (getter) => (list, asc = true) => {
+        const sortFn = asc ? sortAsc : sortDesc;
+        return [...list].toSorted((a, b) => {
+            const leftValue = getter(a);
+            const rightValue = getter(b);
+            return sortFn(leftValue, rightValue);
+        });
+    };
+
+    const sortByConfidence = sortBy(({ confidence })=> confidence)
+
+
+    const sortAsc = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
+
+    const sortDesc = (left, right) => (left < right ? 1 : left > right ? -1 : 0);
+</script>
+</body>
+</html>
