@@ -18,6 +18,15 @@ type Detection struct {
 	Bbox       [][]float64 `db:"bbox" json:"bbox"`
 }
 
+type DetectionEvent struct {
+	ID        int64     `db:"id" json:"id"`
+	DeviceID  int64     `db:"device_id" json:"device_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	EndedAt   time.Time `db:"ended_at" json:"ended_at"`
+	Labels    string    `db:"labels" json:"labels"`
+	State     int       `db:"state" json:"state"`
+}
+
 type Device struct {
 	ID        int64  `db:"id" json:"id"`
 	Name      string `db:"name" json:"name"`

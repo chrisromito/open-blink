@@ -81,7 +81,7 @@ golangci-lint fmt
 docker run --rm -v ./internal/postgres/migrations:/migrations \
   -e GOOSE_DRIVER="postgres" \
   -e GOOSE_COMMAND="create" \
-  -e GOOSE_COMMAND_ARG="device_image_annotated_path sql" \
+  -e GOOSE_COMMAND_ARG="create_table_device_event sql" \
   -e GOOSE_DBSTRING=postgres://postgres:postgres@postgres:5432/openblink \
   ghcr.io/kukymbr/goose-docker:3.27.0
 ```

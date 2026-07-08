@@ -61,3 +61,7 @@ sql:
             go_type:
               type: "string"
               pointer: true
+          - column: "detection_events.state"
+            go_type:
+              type: "int"
+              pointer: false

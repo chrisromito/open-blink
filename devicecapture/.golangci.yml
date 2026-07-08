@@ -28,6 +28,6 @@ formatters:
     - gci
     - gofmt
 #    - gofumpt
-    - goimports
+#    - goimports
     - golines
-    - swaggo
+#    - swaggo
