@@ -76,20 +76,6 @@ func (m *MqttClient) CopyWithClientId(clientId string) MqttClient {
 	}
 }
 
-func (m *MqttClient) PublishImage(img []byte, deviceId string) error {
-	if m.Client == nil {
-		return fmt.Errorf("client not connected")
-	}
-	topic := fmt.Sprintf("image/%s", deviceId)
-	logger.Debug().Msgf("Publishing image to topic: %s", topic)
-	err := m.Publish(topic, img)
-	if err != nil {
-		return err
-	}
-	logger.Debug().Msgf("Published image to topic: %s", topic)
-	return nil
-}
-
 func (m *MqttClient) Connect() error {
 	if m.Client != nil {
 		return fmt.Errorf("client already connected")

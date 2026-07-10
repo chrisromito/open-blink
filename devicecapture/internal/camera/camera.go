@@ -28,6 +28,7 @@ type CameraService struct {
 	Detector      detection.ObjectDetector
 	ImageRepo     devices.ImageRepo
 	mqttClient    *pubsub.MqttClient
+	tracker       *DetectionTracker
 	connectedIds  []string
 	mu            sync.Mutex
 }
@@ -51,6 +52,7 @@ func NewCameraService(
 		connectedIds:  ids,
 		Detector:      detector,
 		mqttClient:    qtClient,
+		tracker:       NewDetectionTracker(deps.EventRepo, qtClient),
 		mu:            sync.Mutex{},
 	}
 	return cs
@@ -282,7 +284,19 @@ func (s *CameraService) receiveFrame(
 		}
 		err := s.receiveDetectionResponse(ctx, device, frame, detections, framePath, ap)
 		if err != nil {
-			logger.Error().Err(err).Send()
+			logger.Error().Str("service", "camera.receiveFrame").
+				Str("threwFrom", "receiveDetectionResponse").
+				Err(err).
+				Send()
+			return
+		}
+		err = s.trackDetections(ctx, device, detections)
+		if err != nil {
+			logger.Error().Str("service", "camera.receiveFrame").
+				Str("threwFrom", "trackDetections").
+				Err(err).
+				Send()
+			return
 		}
 		return
 	}()
@@ -299,7 +313,7 @@ func (s *CameraService) receiveFrame(
 			return
 		}
 		// Update MQTT via FrameRepo
-		repoErr := s.FrameRepo.PublishFrame(frame, ap, strconv.Itoa(int(device.ID)))
+		repoErr := s.FrameRepo.PublishFrame(frame, ap, device.StringId())
 		if repoErr != nil {
 			logger.Error().
 				Str("CameraService", "startStream.FrameRepo.PublishFrame").
@@ -309,7 +323,62 @@ func (s *CameraService) receiveFrame(
 		return
 	}()
 
+	logger.Debug().Str("CameraService", "receiveFrame").
+		Msg("Waiting for wg")
 	wg.Wait()
+	logger.Debug().Str("CameraService", "receiveFrame").
+		Msg("Returning")
+	return nil
+}
+
+// trackDetections passes detections to the detectionTracker so it can write [event.DetectionEvent] as needed
+func (s *CameraService) trackDetections(
+	ctx context.Context,
+	device devices.Device,
+	detections []detection.Detection,
+) error {
+	var labels []string
+	for _, d := range detections {
+		labels = append(labels, d.Label)
+	}
+	// start a DetectionEvent if needed
+	if !s.tracker.HasEvent(device.ID) {
+		err := s.tracker.Start(ctx, device.ID, labels)
+		if err != nil {
+			logger.Error().Str("CameraService", "receiveFrame").
+				Err(err).Send()
+			return err
+		}
+		return nil
+	}
+	// now we can push the labels into DetectionTracker and determine
+	// if this is the end of a DetectionEvent
+	same := s.tracker.LabelsEq(device.ID, labels)
+	// If labels changed we need to end the DetectionEvent and start a new one
+	if !same {
+		logger.Debug().Str("CameraService", "receiveFrame").
+			Str("goroutine", "tracker.End").
+			Msg("labels changed, Ending DetectionEvent")
+		err := s.tracker.End(ctx, device.ID)
+		if err != nil {
+			logger.Error().Str("CameraService", "receiveFrame").
+				Str("goroutine", "tracker.End").
+				Err(err).
+				Send()
+			return err
+		}
+		logger.Debug().Str("CameraService", "receiveFrame").
+			Str("goroutine", "tracker.End").
+			Msg("labels changed Starting Next DetectionEvent")
+		err = s.tracker.Start(ctx, device.ID, labels)
+		if err != nil {
+			logger.Error().Str("CameraService", "receiveFrame").
+				Str("goroutine", "tracker.Start (after ending)").
+				Err(err).
+				Send()
+		}
+		return err
+	}
 	return nil
 }
 

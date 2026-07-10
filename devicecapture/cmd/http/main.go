@@ -23,6 +23,7 @@ import (
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
+	"devicecapture/internal/postgres/repos/event"
 	"devicecapture/internal/pubsub"
 	"devicecapture/internal/server"
 	"github.com/google/uuid"
@@ -61,6 +62,7 @@ func main() {
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
 		repos.NewPgDetectionHistoryRepo(queries, conf),
+		event.NewPgDetectionEventRepo(queries),
 	)
 
 	//-- App

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/domain/event"
 	"devicecapture/internal/domain/history"
 	"devicecapture/internal/domain/receiver"
 )
@@ -13,6 +14,7 @@ type Deps struct {
 	DetectionRepo devices.DetectionRepo
 	FrameRepo     receiver.FrameRepository
 	HistoryRepo   history.DetectionHistoryRepo
+	EventRepo     event.DetectionEventRepo
 }
 
 func NewDeps(
@@ -22,6 +24,7 @@ func NewDeps(
 	img devices.ImageRepo,
 	fr receiver.FrameRepository,
 	hr history.DetectionHistoryRepo,
+	er event.DetectionEventRepo,
 ) *Deps {
 	return &Deps{
 		DeviceRepo:    dev,
@@ -30,6 +33,7 @@ func NewDeps(
 		DetectionRepo: detRepo,
 		FrameRepo:     fr,
 		HistoryRepo:   hr,
+		EventRepo:     er,
 	}
 }
 
@@ -41,5 +45,6 @@ func NewMockDeps() *Deps {
 		DetectionRepo: devices.NewMockDetection(),
 		FrameRepo:     receiver.NewMockFrameRepo(),
 		HistoryRepo:   history.NewMockDetectionHistory(),
+		EventRepo:     event.NewMockEventRepo(),
 	}
 }

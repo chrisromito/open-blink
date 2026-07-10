@@ -17,6 +17,7 @@ import (
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
+	"devicecapture/internal/postgres/repos/event"
 	"devicecapture/internal/pubsub"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
@@ -56,6 +57,7 @@ func main() {
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
 		repos.NewPgDetectionHistoryRepo(queries, conf),
+		event.NewPgDetectionEventRepo(queries),
 	)
 
 	//-- App
@@ -109,6 +111,12 @@ func run(ctx context.Context, a *app.App) error {
 	}
 	archiveTicker := time.NewTicker(4 * time.Hour)
 	snapshotTicker := time.NewTicker(30 * time.Second)
+	cs := camera.NewCameraService(
+		a.Conf,
+		a.AppDeps,
+		detection.NewObjectDetectionService(a.Conf),
+		a.MqttClient,
+	)
 
 	for {
 		select {
@@ -117,7 +125,7 @@ func run(ctx context.Context, a *app.App) error {
 		case msg := <-msgChan:
 			logger.Debug().Str("fn", "run").
 				Msgf("capturing streams for devices due to topic: %v, & message %v", msg.Topic(), msg.Payload())
-			err := loopDevices(ctx, a, true)
+			err := loopDevices(ctx, a, cs, true)
 			if err != nil {
 				logger.Error().
 					Str("fn", "main").
@@ -141,7 +149,7 @@ func run(ctx context.Context, a *app.App) error {
 					Send()
 			}
 		case <-snapshotTicker.C:
-			err := loopDevices(ctx, a, false)
+			err := loopDevices(ctx, a, cs, false)
 			if err != nil {
 				logger.Error().
 					Str("fn", "main").
@@ -190,19 +198,24 @@ func run(ctx context.Context, a *app.App) error {
 //	return nil
 //}
 
-func loopDevices(ctx context.Context, a *app.App, motionDetected bool) error {
+func loopDevices(
+	ctx context.Context,
+	a *app.App,
+	cs *camera.CameraService,
+	motionDetected bool,
+) error {
 	logger.Debug().Str("fn", "main.loop").Msg("begin...")
 	deviceRepo := a.AppDeps.DeviceRepo
 	deviceList, rErr := deviceRepo.ListDevices(ctx)
 	if rErr != nil {
 		return rErr
 	}
-	cs := camera.NewCameraService(
-		a.Conf,
-		a.AppDeps,
-		detection.NewObjectDetectionService(a.Conf),
-		a.MqttClient,
-	)
+	//cs := camera.NewCameraService(
+	//	a.Conf,
+	//	a.AppDeps,
+	//	detection.NewObjectDetectionService(a.Conf),
+	//	a.MqttClient,
+	//)
 	if motionDetected {
 		return captureStreams(ctx, deviceList, cs)
 	}
