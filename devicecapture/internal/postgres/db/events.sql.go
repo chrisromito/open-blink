@@ -32,6 +32,92 @@ func (q *Queries) EndEvent(ctx context.Context, id int64) (DetectionEvent, error
 	return i, err
 }
 
+const endStaleDetectionEvents = `-- name: EndStaleDetectionEvents :exec
+UPDATE detection_events
+SET ended_at = NOW()
+WHERE ended_at ='0001-01-01 00:00:00.000000 +00:00'
+  AND created_at < (NOW() - interval '1 hour')
+`
+
+func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, endStaleDetectionEvents)
+	return err
+}
+
+const getEventDetails = `-- name: GetEventDetails :many
+SELECT detection_events.id, detection_events.device_id, detection_events.created_at, detection_events.ended_at, detection_events.labels, detection_events.state,
+       device_images.id AS image_id,
+       device_images.annotated_path,
+       device_images.image_path,
+       detections.id as detection_id,
+       detections.label,
+       detections.confidence,
+       detections.created_at as detected_at,
+       detections.bbox,
+       detections.image_id as detected_image_id
+FROM detection_events
+         JOIN device_images ON device_images.device_id = detection_events.device_id
+         JOIN detections ON detections.image_id = device_images.id
+WHERE detection_events.id = $1
+  AND detections.created_at >= detection_events.created_at
+  AND detections.created_at <= detection_events.ended_at
+LIMIT 100
+`
+
+type GetEventDetailsRow struct {
+	ID              int64       `db:"id" json:"id"`
+	DeviceID        int64       `db:"device_id" json:"device_id"`
+	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
+	EndedAt         time.Time   `db:"ended_at" json:"ended_at"`
+	Labels          string      `db:"labels" json:"labels"`
+	State           int         `db:"state" json:"state"`
+	ImageID         int64       `db:"image_id" json:"image_id"`
+	AnnotatedPath   *string     `db:"annotated_path" json:"annotated_path"`
+	ImagePath       string      `db:"image_path" json:"image_path"`
+	DetectionID     int64       `db:"detection_id" json:"detection_id"`
+	Label           string      `db:"label" json:"label"`
+	Confidence      float64     `db:"confidence" json:"confidence"`
+	DetectedAt      time.Time   `db:"detected_at" json:"detected_at"`
+	Bbox            [][]float64 `db:"bbox" json:"bbox"`
+	DetectedImageID *int64      `db:"detected_image_id" json:"detected_image_id"`
+}
+
+func (q *Queries) GetEventDetails(ctx context.Context, id int64) ([]GetEventDetailsRow, error) {
+	rows, err := q.db.Query(ctx, getEventDetails, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEventDetailsRow{}
+	for rows.Next() {
+		var i GetEventDetailsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeviceID,
+			&i.CreatedAt,
+			&i.EndedAt,
+			&i.Labels,
+			&i.State,
+			&i.ImageID,
+			&i.AnnotatedPath,
+			&i.ImagePath,
+			&i.DetectionID,
+			&i.Label,
+			&i.Confidence,
+			&i.DetectedAt,
+			&i.Bbox,
+			&i.DetectedImageID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEvents = `-- name: GetEvents :many
 SELECT id, device_id, created_at, ended_at, labels, state
 FROM detection_events

@@ -32,10 +32,10 @@ func DetectionStateFromValue(value int) (DetectionState, error) {
 		return Down, nil
 	case 2:
 		return Started, nil
-	case 3:
-		return Ended, nil
 	default:
 		return Unknown, errors.New("invalid value for DetectionState")
+	case 3:
+		return Ended, nil
 	}
 }
 
@@ -54,11 +54,36 @@ type QueryParams struct {
 	State    DetectionState
 }
 
+type DetectionForImage struct {
+	ID         int64   `db:"id"          json:"id"`
+	Confidence float64 `db:"confidence"  json:"confidence"`
+	Label      string  `db:"label"       json:"label"`
+}
+
+type ImageDetails struct {
+	ID         int64               `db:"id"          json:"id"`
+	CreatedAt  time.Time           `db:"created_at"  json:"created_at"`
+	ImageUrl   string              `db:"image_url"   json:"image_url"`
+	Detections []DetectionForImage `db:"detections"  json:"detections"`
+}
+
+type DetectionDetail struct {
+	ID        int64          `db:"id"         json:"id"`
+	CreatedAt time.Time      `db:"created_at" json:"created_at"`
+	EndedAt   time.Time      `db:"ended_at"   json:"ended_at"`
+	DeviceID  int64          `db:"device_id"  json:"device_id"`
+	State     int            `db:"state"      json:"state"`
+	Details   []ImageDetails `db:"details"    json:"details"`
+}
+
 type DetectionEventRepo interface {
 	// StartEvent creates a DetectionEvent with the given deviceID and labels
 	StartEvent(ctx context.Context, deviceID int64, labels []string) (DetectionEvent, error)
 	// EndEvent updates a DetectionEvent by flagging it as Ended
 	EndEvent(ctx context.Context, e DetectionEvent) (DetectionEvent, error)
-	// GetDeviceEvents returns paginated slices of DetectionEvent based on the provided QueryParams
-	GetDeviceEvents(ctx context.Context, p QueryParams) ([]DetectionEvent, error)
+	// GetDetectionEvents returns paginated slices of DetectionEvent based on the provided QueryParams
+	GetDetectionEvents(ctx context.Context, p QueryParams) ([]DetectionEvent, error)
+	// GetDetectionsForEvent returns DeviceDetections that happened in the date range
+	// for a given [DetectionEvent]
+	GetDetectionsForEvent(ctx context.Context, eventID int64) (DetectionDetail, error)
 }

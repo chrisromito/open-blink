@@ -50,8 +50,8 @@ func (de *MockEventRepo) EndEvent(
 	return evt, nil
 }
 
-// GetDeviceEvents implements DetectionEventRepo
-func (de *MockEventRepo) GetDeviceEvents(
+// GetDetectionEvents implements DetectionEventRepo
+func (de *MockEventRepo) GetDetectionEvents(
 	_ context.Context,
 	p QueryParams,
 ) ([]DetectionEvent, error) {
@@ -74,6 +74,11 @@ func (de *MockEventRepo) GetDeviceEvents(
 		})
 	}
 	return temp, nil
+}
+
+// GetDetectionsForEvent implements DetectionEventRepo
+func (de *MockEventRepo) GetDetectionsForEvent(_ context.Context, eventID int64) (DetectionDetail, error) {
+	return DetectionDetail{ID: eventID}, nil
 }
 
 func GetRandomLabels(n int) []string {

@@ -62,7 +62,7 @@ func main() {
 		repos.NewPgImageRepo(queries),
 		pubsub.NewMqttReceiver(&client, conf),
 		repos.NewPgDetectionHistoryRepo(queries, conf),
-		event.NewPgDetectionEventRepo(queries),
+		event.NewPgDetectionEventRepo(queries, conf),
 	)
 
 	//-- App
@@ -73,13 +73,16 @@ func main() {
 	http.HandleFunc("/detection-view", server.DetectionViewHandler())
 	http.HandleFunc("/timeline-view", server.TimelineViewHandler())
 	http.HandleFunc("/image-stream/{id}", server.StreamProxyHandler(a))
-	http.HandleFunc("/heartbeat", server.HeartBeatListHandler(a))
-	http.HandleFunc("/detection-stream", server.DetectionStreamHandler(a))
+	http.HandleFunc("/heartbeat", server.CorsMiddleware(server.HeartBeatListHandler(a)))
+	http.HandleFunc("/detection-stream", server.CorsMiddleware(server.DetectionStreamHandler(a)))
 	// API Endpoints
-	http.HandleFunc("/api/device", server.DeviceListHandler(a))
-	http.HandleFunc("/api/label", server.GetRecentLabelsHandler(a))
-	http.HandleFunc("/api/detection-image", server.GetDetectionImagesByLabelHandler(a))
-	http.HandleFunc("/api/timeline", server.GetDetectionTimelineHandler(a))
+	http.HandleFunc("/api/device", server.CorsMiddleware(server.DeviceListHandler(a)))
+	http.HandleFunc("/api/label", server.CorsMiddleware(server.GetRecentLabelsHandler(a)))
+	http.HandleFunc("/api/detection-image", server.CorsMiddleware(server.GetDetectionImagesByLabelHandler(a)))
+	http.HandleFunc("/api/timeline", server.CorsMiddleware(server.GetDetectionTimelineHandler(a)))
+	// DetectionEvents API endpoints
+	http.HandleFunc("/api/event", server.CorsMiddleware(server.DetectionEventListHandler(a)))
+	http.HandleFunc("/api/event/{id}", server.CorsMiddleware(server.DetectionEventDetailHandler(a)))
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))

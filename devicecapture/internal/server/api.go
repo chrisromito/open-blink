@@ -1,6 +1,7 @@
 package server
 
 import (
+	"devicecapture/internal/domain/event"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -31,6 +32,7 @@ func GetRecentLabelsHandler(a *app.App) http.HandlerFunc {
 
 func GetDetectionImagesByLabelHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		w.Header().Set("Content-Type", "application/json")
 		ctx := r.Context()
 		labelQuery := []string{"person"}
@@ -108,6 +110,84 @@ func GetDetectionTimelineHandler(a *app.App) http.HandlerFunc {
 			return
 		}
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+}
+
+func DetectionEventListHandler(a *app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		ctx := r.Context()
+		deviceID := int64(0)
+		queryDevice := r.URL.Query().Get("device_id")
+		if queryDevice != "" {
+			idInt, err := strconv.ParseInt(queryDevice, 10, 64)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			deviceID = idInt
+		}
+		page := 1
+		queryPage := r.URL.Query().Get("page")
+		if queryPage != "" {
+			pageInt, err := strconv.Atoi(queryPage)
+			if err != nil {
+				logger.Error().Err(err).Str("endpoint", "DetectionEventListHandler").
+					Str("param", "page").Send()
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			page = pageInt
+		}
+		params := event.QueryParams{
+			DeviceID: deviceID,
+			Page:     page,
+		}
+		ds, dbErr := a.AppDeps.EventRepo.GetDetectionEvents(ctx, params)
+		if dbErr != nil {
+			logger.Error().Err(dbErr).Str("endpoint", "DetectionEventListHandler").
+				Msg("dbErr")
+			http.Error(w, dbErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(ds); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+}
+
+func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		ctx := r.Context()
+		idInt, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		logger.Debug().Str("endpoint", "DetectionEventDetailHandler").
+			Str("id", r.PathValue("id")).
+			Send()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		eventDetails, dbErr := a.AppDeps.EventRepo.GetDetectionsForEvent(ctx, idInt)
+		if dbErr != nil {
+			logger.Error().Err(dbErr).
+				Str("endpoint", "DetectionEventDetailHandler").
+				Str("id", r.PathValue("id")).
+				Msg("dbErr")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err = json.NewEncoder(w).Encode(eventDetails); err != nil {
+			logger.Error().Err(dbErr).
+				Str("endpoint", "DetectionEventDetailHandler").
+				Str("id", r.PathValue("id")).
+				Msg("dbErr")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

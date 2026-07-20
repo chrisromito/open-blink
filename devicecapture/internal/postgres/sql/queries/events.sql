@@ -19,7 +19,7 @@ WHERE (
     )
 ORDER BY created_at DESC
 -- $3, $4 = limit, offset
-LIMIT @lim OFFSET @off;
+LIMIT @lim OFFSET @OFF;
 
 -- name: StartEvent :one
 INSERT INTO detection_events(id, device_id, created_at, ended_at, labels, state)
@@ -50,3 +50,30 @@ SET labels =
             END
 WHERE id = @id
 RETURNING *;
+
+
+-- name: GetEventDetails :many
+SELECT detection_events.*,
+       device_images.id AS image_id,
+       device_images.annotated_path,
+       device_images.image_path,
+       detections.id as detection_id,
+       detections.label,
+       detections.confidence,
+       detections.created_at as detected_at,
+       detections.bbox,
+       detections.image_id as detected_image_id
+FROM detection_events
+         JOIN device_images ON device_images.device_id = detection_events.device_id
+         JOIN detections ON detections.image_id = device_images.id
+WHERE detection_events.id = @id
+  AND detections.created_at >= detection_events.created_at
+  AND detections.created_at <= detection_events.ended_at
+LIMIT 100;
+
+
+-- name: EndStaleDetectionEvents :exec
+UPDATE detection_events
+SET ended_at = NOW()
+WHERE ended_at ='0001-01-01 00:00:00.000000 +00:00'
+  AND created_at < (NOW() - interval '1 hour');

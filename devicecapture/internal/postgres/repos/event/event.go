@@ -2,6 +2,9 @@ package event
 
 import (
 	"context"
+	"devicecapture/internal/config"
+	"devicecapture/internal/logger"
+	"devicecapture/internal/postgres/repos"
 	"slices"
 	"strings"
 
@@ -11,11 +14,13 @@ import (
 
 type PgDetectionEventRepo struct {
 	queries *db.Queries
+	config  *config.Config
 }
 
-func NewPgDetectionEventRepo(q *db.Queries) *PgDetectionEventRepo {
+func NewPgDetectionEventRepo(q *db.Queries, conf *config.Config) *PgDetectionEventRepo {
 	return &PgDetectionEventRepo{
 		queries: q,
+		config:  conf,
 	}
 }
 
@@ -53,8 +58,8 @@ func (de *PgDetectionEventRepo) EndEvent(
 
 var pageSize = int32(100)
 
-// GetDeviceEvents implements [dEvent.DetectionEventRepo]
-func (de *PgDetectionEventRepo) GetDeviceEvents(
+// GetDetectionEvents implements [dEvent.DetectionEventRepo]
+func (de *PgDetectionEventRepo) GetDetectionEvents(
 	ctx context.Context,
 	p dEvent.QueryParams,
 ) ([]dEvent.DetectionEvent, error) {
@@ -81,6 +86,17 @@ func (de *PgDetectionEventRepo) GetDeviceEvents(
 	return temp, nil
 }
 
+// GetDetectionsForEvent implements [dEvent.DetectionEventRepo]
+func (de *PgDetectionEventRepo) GetDetectionsForEvent(ctx context.Context, eventID int64) (dEvent.DetectionDetail, error) {
+	results, err := de.queries.GetEventDetails(ctx, eventID)
+	if err != nil {
+		logger.Error().Err(err).Send()
+		return dEvent.DetectionDetail{}, err
+	}
+	details := de.detailsDbToDomain(results)
+	return details, nil
+}
+
 // dbToDomain converts a [db.DetectionEvent] to a [dEvent.DetectionEvent]
 func (de *PgDetectionEventRepo) dbToDomain(evt db.DetectionEvent) dEvent.DetectionEvent {
 	return dEvent.DetectionEvent{
@@ -91,6 +107,51 @@ func (de *PgDetectionEventRepo) dbToDomain(evt db.DetectionEvent) dEvent.Detecti
 		State:     evt.State,
 		Labels:    DbToLabels(evt.Labels),
 	}
+}
+
+func (de *PgDetectionEventRepo) detailsDbToDomain(rows []db.GetEventDetailsRow) dEvent.DetectionDetail {
+	temp := dEvent.DetectionDetail{}
+	var usedImageIDs []int64
+	//var details []dEvent.ImageDetails
+	for _, row := range rows {
+		if temp.ID == 0 {
+			temp.ID = row.ID
+			temp.CreatedAt = row.CreatedAt
+			temp.EndedAt = row.EndedAt
+			temp.DeviceID = row.DeviceID
+			temp.State = row.State
+		}
+		// Avoid duplicate ImageIDs
+		if !slices.Contains(usedImageIDs, row.ImageID) {
+			usedImageIDs = append(usedImageIDs, row.ImageID)
+			detections := DetectionsForImage(rows, row.ImageID)
+			temp.Details = append(temp.Details, dEvent.ImageDetails{
+				ID:         row.ImageID,
+				ImageUrl:   repos.UrlForDetection(de.config.ThisIp, row.ImagePath, row.AnnotatedPath),
+				Detections: detections,
+				CreatedAt:  row.DetectedAt,
+			})
+		}
+
+	}
+	return temp
+}
+
+// DetectionsForImage populates the Details field for [dEvent.DetectionDetail]
+func DetectionsForImage(rows []db.GetEventDetailsRow, imageID int64) []dEvent.DetectionForImage {
+	var temp []dEvent.DetectionForImage
+	logger.Debug().Str("event", "DetectionsForImage").
+		Int("# rows", len(rows)).Send()
+	for _, row := range rows {
+		if row.ImageID == imageID {
+			temp = append(temp, dEvent.DetectionForImage{
+				ID:         row.DetectionID,
+				Label:      row.Label,
+				Confidence: row.Confidence,
+			})
+		}
+	}
+	return temp
 }
 
 // LabelsToDb converts a slice of strings to a sorted, comma-separated string of values

@@ -1,6 +1,8 @@
 package event
 
 import (
+	"devicecapture/internal/config"
+	"devicecapture/internal/domain/devices"
 	"fmt"
 	"testing"
 
@@ -97,7 +99,7 @@ func Test_Start_DetectionEvent(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
-	repo := NewPgDetectionEventRepo(q)
+	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
 	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
@@ -149,7 +151,7 @@ func Test_End_DetectionEvent(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
-	repo := NewPgDetectionEventRepo(q)
+	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
 	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
@@ -178,7 +180,7 @@ func Test_Get_Detection_Events(t *testing.T) {
 	a.NoError(dbErr)
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
-	repo := NewPgDetectionEventRepo(q)
+	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
 	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
@@ -210,11 +212,30 @@ func Test_Get_Detection_Events(t *testing.T) {
 			Labels:   []string{"car", "truck"},
 		},
 	}
+
+	createDetections := func(id int64, labels []string) error {
+		detectionRepo := repos.NewPgDetectionRepo(q)
+
+		for _, label := range labels {
+			_, err := detectionRepo.CreateDetection(t.Context(), devices.CreateDetectionParams{
+				DeviceID:   id,
+				Label:      label,
+				Confidence: 0.9,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	writeCount := 0
 	for _, params := range toWrite {
 		for i := range 3 {
 			fmt.Println(i)
 			de, err := repo.StartEvent(ctx, params.DeviceID, params.Labels)
+			a.NoError(err)
+			err = createDetections(params.DeviceID, params.Labels)
 			a.NoError(err)
 			_, err = repo.EndEvent(ctx, de)
 			a.NoError(err)
@@ -226,10 +247,10 @@ func Test_Get_Detection_Events(t *testing.T) {
 		param := dEvent.QueryParams{
 			DeviceID: deviceID,
 		}
-		results, err := repo.GetDeviceEvents(t.Context(), param)
-		a.NoError(err)
-		a.NotEmpty(results)
-		a.Equal(len(results), writeCount)
+		results, err := repo.GetDetectionEvents(t.Context(), param)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, results)
+		assert.Equal(t, len(results), writeCount)
 	})
 
 	t.Run("read_first_page", func(t *testing.T) {
@@ -238,22 +259,47 @@ func Test_Get_Detection_Events(t *testing.T) {
 			DeviceID: deviceID,
 			Page:     100,
 		}
-		_, err := repo.GetDeviceEvents(t.Context(), param)
-		a.NoError(err)
+		_, err := repo.GetDetectionEvents(t.Context(), param)
+		assert.NoError(t, err)
 	})
 
 	t.Run("read_started_events", func(t *testing.T) {
 		started, dErr := repo.StartEvent(ctx, deviceID, []string{"unfinished"})
-		a.NoError(dErr)
-		a.NotEmpty(started)
+		assert.NoError(t, dErr)
+		assert.NotEmpty(t, started)
 		param := dEvent.QueryParams{
 			DeviceID: deviceID,
 			State:    dEvent.Started,
 		}
-		records, err := repo.GetDeviceEvents(t.Context(), param)
-		a.NoError(err)
+		records, err := repo.GetDetectionEvents(t.Context(), param)
+		assert.NoError(t, err)
 		for _, de := range records {
-			a.Equal(de.State, int(dEvent.Started), "State query param works as a filter")
+			assert.Equal(t, de.State, int(dEvent.Started), "State query param works as a filter")
 		}
 	})
+
+	t.Run("event_details", func(t *testing.T) {
+		detections, dErr := repo.GetDetectionEvents(t.Context(), dEvent.QueryParams{
+			DeviceID: deviceID,
+		})
+		assert.NoError(t, dErr)
+		for _, d := range detections {
+			detail, err := repo.GetDetectionsForEvent(t.Context(), d.ID)
+			assert.NoError(t, err)
+			assert.NotNil(t, detail.Details)
+		}
+	})
+}
+
+func getTestConfig(videoPath string) *config.Config {
+	if videoPath == "" {
+		videoPath = "/tmp/videos"
+	}
+	return &config.Config{
+		MqttHost:            "",
+		DbUrl:               "postgres://postgres:postgres@postgres:5432/test_openblink",
+		VideoPath:           videoPath,
+		DetectionServiceUrl: "http://0.0.0.0:4000",
+		ThisIp:              "http://0.0.0.0:8000",
+	}
 }
