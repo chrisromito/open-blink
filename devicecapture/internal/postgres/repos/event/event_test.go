@@ -1,11 +1,11 @@
 package event
 
 import (
-	"devicecapture/internal/config"
-	"devicecapture/internal/domain/devices"
 	"fmt"
 	"testing"
 
+	"devicecapture/internal/config"
+	"devicecapture/internal/domain/devices"
 	dEvent "devicecapture/internal/domain/event"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"

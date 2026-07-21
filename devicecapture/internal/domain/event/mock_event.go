@@ -77,7 +77,10 @@ func (de *MockEventRepo) GetDetectionEvents(
 }
 
 // GetDetectionsForEvent implements DetectionEventRepo
-func (de *MockEventRepo) GetDetectionsForEvent(_ context.Context, eventID int64) (DetectionDetail, error) {
+func (de *MockEventRepo) GetDetectionsForEvent(
+	_ context.Context,
+	eventID int64,
+) (DetectionDetail, error) {
 	return DetectionDetail{ID: eventID}, nil
 }
 

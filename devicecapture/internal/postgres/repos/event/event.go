@@ -2,14 +2,14 @@ package event
 
 import (
 	"context"
-	"devicecapture/internal/config"
-	"devicecapture/internal/logger"
-	"devicecapture/internal/postgres/repos"
 	"slices"
 	"strings"
 
+	"devicecapture/internal/config"
 	dEvent "devicecapture/internal/domain/event"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
+	"devicecapture/internal/postgres/repos"
 )
 
 type PgDetectionEventRepo struct {
@@ -71,6 +71,8 @@ func (de *PgDetectionEventRepo) GetDetectionEvents(
 		DeviceID: p.DeviceID,
 		Lim:      pageSize,
 		Off:      (page - 1) * pageSize,
+		Startdt:  p.Start,
+		Enddt:    p.End,
 	}
 	if p.State != 0 {
 		params.State = int32(p.State)
@@ -87,7 +89,10 @@ func (de *PgDetectionEventRepo) GetDetectionEvents(
 }
 
 // GetDetectionsForEvent implements [dEvent.DetectionEventRepo]
-func (de *PgDetectionEventRepo) GetDetectionsForEvent(ctx context.Context, eventID int64) (dEvent.DetectionDetail, error) {
+func (de *PgDetectionEventRepo) GetDetectionsForEvent(
+	ctx context.Context,
+	eventID int64,
+) (dEvent.DetectionDetail, error) {
 	results, err := de.queries.GetEventDetails(ctx, eventID)
 	if err != nil {
 		logger.Error().Err(err).Send()
@@ -95,46 +100,6 @@ func (de *PgDetectionEventRepo) GetDetectionsForEvent(ctx context.Context, event
 	}
 	details := de.detailsDbToDomain(results)
 	return details, nil
-}
-
-// dbToDomain converts a [db.DetectionEvent] to a [dEvent.DetectionEvent]
-func (de *PgDetectionEventRepo) dbToDomain(evt db.DetectionEvent) dEvent.DetectionEvent {
-	return dEvent.DetectionEvent{
-		ID:        evt.ID,
-		DeviceID:  evt.DeviceID,
-		CreatedAt: evt.CreatedAt,
-		EndedAt:   evt.EndedAt,
-		State:     evt.State,
-		Labels:    DbToLabels(evt.Labels),
-	}
-}
-
-func (de *PgDetectionEventRepo) detailsDbToDomain(rows []db.GetEventDetailsRow) dEvent.DetectionDetail {
-	temp := dEvent.DetectionDetail{}
-	var usedImageIDs []int64
-	//var details []dEvent.ImageDetails
-	for _, row := range rows {
-		if temp.ID == 0 {
-			temp.ID = row.ID
-			temp.CreatedAt = row.CreatedAt
-			temp.EndedAt = row.EndedAt
-			temp.DeviceID = row.DeviceID
-			temp.State = row.State
-		}
-		// Avoid duplicate ImageIDs
-		if !slices.Contains(usedImageIDs, row.ImageID) {
-			usedImageIDs = append(usedImageIDs, row.ImageID)
-			detections := DetectionsForImage(rows, row.ImageID)
-			temp.Details = append(temp.Details, dEvent.ImageDetails{
-				ID:         row.ImageID,
-				ImageUrl:   repos.UrlForDetection(de.config.ThisIp, row.ImagePath, row.AnnotatedPath),
-				Detections: detections,
-				CreatedAt:  row.DetectedAt,
-			})
-		}
-
-	}
-	return temp
 }
 
 // DetectionsForImage populates the Details field for [dEvent.DetectionDetail]
@@ -163,4 +128,49 @@ func LabelsToDb(labels []string) string {
 
 func DbToLabels(label string) []string {
 	return strings.Split(label, ", ")
+}
+
+// dbToDomain converts a [db.DetectionEvent] to a [dEvent.DetectionEvent]
+func (de *PgDetectionEventRepo) dbToDomain(evt db.DetectionEvent) dEvent.DetectionEvent {
+	return dEvent.DetectionEvent{
+		ID:        evt.ID,
+		DeviceID:  evt.DeviceID,
+		CreatedAt: evt.CreatedAt,
+		EndedAt:   evt.EndedAt,
+		State:     evt.State,
+		Labels:    DbToLabels(evt.Labels),
+	}
+}
+
+func (de *PgDetectionEventRepo) detailsDbToDomain(
+	rows []db.GetEventDetailsRow,
+) dEvent.DetectionDetail {
+	temp := dEvent.DetectionDetail{}
+	var usedImageIDs []int64
+	//var details []dEvent.ImageDetails
+	for _, row := range rows {
+		if temp.ID == 0 {
+			temp.ID = row.ID
+			temp.CreatedAt = row.CreatedAt
+			temp.EndedAt = row.EndedAt
+			temp.DeviceID = row.DeviceID
+			temp.State = row.State
+		}
+		// Avoid duplicate ImageIDs
+		if !slices.Contains(usedImageIDs, row.ImageID) {
+			usedImageIDs = append(usedImageIDs, row.ImageID)
+			detections := DetectionsForImage(rows, row.ImageID)
+			temp.Details = append(temp.Details, dEvent.ImageDetails{
+				ID: row.ImageID,
+				ImageUrl: repos.UrlForDetection(
+					de.config.ThisIp,
+					row.ImagePath,
+					row.AnnotatedPath,
+				),
+				Detections: detections,
+				CreatedAt:  row.DetectedAt,
+			})
+		}
+	}
+	return temp
 }

@@ -52,19 +52,23 @@ type QueryParams struct {
 	DeviceID int64
 	Page     int
 	State    DetectionState
+	// Start is the minimum created_at value
+	Start time.Time
+	// End is the (optional) maximum created_at value
+	End time.Time
 }
 
 type DetectionForImage struct {
-	ID         int64   `db:"id"          json:"id"`
-	Confidence float64 `db:"confidence"  json:"confidence"`
-	Label      string  `db:"label"       json:"label"`
+	ID         int64   `db:"id"         json:"id"`
+	Confidence float64 `db:"confidence" json:"confidence"`
+	Label      string  `db:"label"      json:"label"`
 }
 
 type ImageDetails struct {
-	ID         int64               `db:"id"          json:"id"`
-	CreatedAt  time.Time           `db:"created_at"  json:"created_at"`
-	ImageUrl   string              `db:"image_url"   json:"image_url"`
-	Detections []DetectionForImage `db:"detections"  json:"detections"`
+	ID         int64               `db:"id"         json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	ImageUrl   string              `db:"image_url"  json:"image_url"`
+	Detections []DetectionForImage `db:"detections" json:"detections"`
 }
 
 type DetectionDetail struct {

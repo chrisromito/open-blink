@@ -3,22 +3,33 @@ SELECT *
 FROM detection_events
 WHERE (
     CASE
-        -- 1 = device_id
         WHEN @device_id::bigint = 0
             THEN detection_events.device_id IS NOT NULL
         ELSE detection_events.device_id = @device_id
         END
     )
   AND (
-    -- $2 = state
     CASE
         WHEN @state::int = 0
             THEN detection_events.state IS NOT NULL
         ELSE detection_events.state = @state
         END
     )
+  AND (
+    CASE
+        WHEN @startdt::timestamp = '0001-01-01 00:00:00.000000 +00:00'
+            THEN detection_events.created_at IS NOT NULL
+        ELSE detection_events.created_at >= @startdt
+        END
+    )
+  AND (
+    CASE
+        WHEN @enddt::timestamp = '0001-01-01 00:00:00.000000 +00:00'
+            THEN detection_events.created_at IS NOT NULL
+        ELSE detection_events.created_at <= @enddt
+        END
+    )
 ORDER BY created_at DESC
--- $3, $4 = limit, offset
 LIMIT @lim OFFSET @OFF;
 
 -- name: StartEvent :one
@@ -54,15 +65,15 @@ RETURNING *;
 
 -- name: GetEventDetails :many
 SELECT detection_events.*,
-       device_images.id AS image_id,
+       device_images.id      AS image_id,
        device_images.annotated_path,
        device_images.image_path,
-       detections.id as detection_id,
+       detections.id         AS detection_id,
        detections.label,
        detections.confidence,
-       detections.created_at as detected_at,
+       detections.created_at AS detected_at,
        detections.bbox,
-       detections.image_id as detected_image_id
+       detections.image_id   AS detected_image_id
 FROM detection_events
          JOIN device_images ON device_images.device_id = detection_events.device_id
          JOIN detections ON detections.image_id = device_images.id
@@ -75,5 +86,5 @@ LIMIT 100;
 -- name: EndStaleDetectionEvents :exec
 UPDATE detection_events
 SET ended_at = NOW()
-WHERE ended_at ='0001-01-01 00:00:00.000000 +00:00'
-  AND created_at < (NOW() - interval '1 hour');
+WHERE ended_at = '0001-01-01 00:00:00.000000 +00:00'
+  AND created_at < (NOW() - INTERVAL '1 hour');

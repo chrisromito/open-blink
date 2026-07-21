@@ -35,8 +35,8 @@ func (q *Queries) EndEvent(ctx context.Context, id int64) (DetectionEvent, error
 const endStaleDetectionEvents = `-- name: EndStaleDetectionEvents :exec
 UPDATE detection_events
 SET ended_at = NOW()
-WHERE ended_at ='0001-01-01 00:00:00.000000 +00:00'
-  AND created_at < (NOW() - interval '1 hour')
+WHERE ended_at = '0001-01-01 00:00:00.000000 +00:00'
+  AND created_at < (NOW() - INTERVAL '1 hour')
 `
 
 func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
@@ -46,15 +46,15 @@ func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
 
 const getEventDetails = `-- name: GetEventDetails :many
 SELECT detection_events.id, detection_events.device_id, detection_events.created_at, detection_events.ended_at, detection_events.labels, detection_events.state,
-       device_images.id AS image_id,
+       device_images.id      AS image_id,
        device_images.annotated_path,
        device_images.image_path,
-       detections.id as detection_id,
+       detections.id         AS detection_id,
        detections.label,
        detections.confidence,
-       detections.created_at as detected_at,
+       detections.created_at AS detected_at,
        detections.bbox,
-       detections.image_id as detected_image_id
+       detections.image_id   AS detected_image_id
 FROM detection_events
          JOIN device_images ON device_images.device_id = detection_events.device_id
          JOIN detections ON detections.image_id = device_images.id
@@ -123,36 +123,51 @@ SELECT id, device_id, created_at, ended_at, labels, state
 FROM detection_events
 WHERE (
     CASE
-        -- 1 = device_id
         WHEN $1::bigint = 0
             THEN detection_events.device_id IS NOT NULL
         ELSE detection_events.device_id = $1
         END
     )
   AND (
-    -- $2 = state
     CASE
         WHEN $2::int = 0
             THEN detection_events.state IS NOT NULL
         ELSE detection_events.state = $2
         END
     )
+  AND (
+    CASE
+        WHEN $3::timestamp = '0001-01-01 00:00:00.000000 +00:00'
+            THEN detection_events.created_at IS NOT NULL
+        ELSE detection_events.created_at >= $3
+        END
+    )
+  AND (
+    CASE
+        WHEN $4::timestamp = '0001-01-01 00:00:00.000000 +00:00'
+            THEN detection_events.created_at IS NOT NULL
+        ELSE detection_events.created_at <= $4
+        END
+    )
 ORDER BY created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $6 OFFSET $5
 `
 
 type GetEventsParams struct {
-	DeviceID int64 `db:"device_id" json:"device_id"`
-	State    int32 `db:"state" json:"state"`
-	Off      int32 `db:"off" json:"off"`
-	Lim      int32 `db:"lim" json:"lim"`
+	DeviceID int64     `db:"device_id" json:"device_id"`
+	State    int32     `db:"state" json:"state"`
+	Startdt  time.Time `db:"startdt" json:"startdt"`
+	Enddt    time.Time `db:"enddt" json:"enddt"`
+	Off      int32     `db:"off" json:"off"`
+	Lim      int32     `db:"lim" json:"lim"`
 }
 
-// $3, $4 = limit, offset
 func (q *Queries) GetEvents(ctx context.Context, arg GetEventsParams) ([]DetectionEvent, error) {
 	rows, err := q.db.Query(ctx, getEvents,
 		arg.DeviceID,
 		arg.State,
+		arg.Startdt,
+		arg.Enddt,
 		arg.Off,
 		arg.Lim,
 	)

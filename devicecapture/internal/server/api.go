@@ -1,19 +1,19 @@
 package server
 
 import (
-	"devicecapture/internal/domain/event"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"devicecapture/internal/app"
+	"devicecapture/internal/domain/event"
 	"devicecapture/internal/domain/history"
 	"devicecapture/internal/logger"
 )
 
 func GetRecentLabelsHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		ctx := r.Context()
 		labels, dbErr := a.AppDeps.HistoryRepo.GetRecentLabels(ctx)
 		if dbErr != nil {
@@ -32,8 +32,6 @@ func GetRecentLabelsHandler(a *app.App) http.HandlerFunc {
 
 func GetDetectionImagesByLabelHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", "application/json")
 		ctx := r.Context()
 		labelQuery := []string{"person"}
 		if r.URL.Query().Has("label") {
@@ -74,35 +72,18 @@ func GetDetectionImagesByLabelHandler(a *app.App) http.HandlerFunc {
 // GetDetectionTimelineHandler Timeline endpoint
 func GetDetectionTimelineHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		ctx := r.Context()
-		deviceID := int64(0)
-		queryDevice := r.URL.Query().Get("device_id")
-		if queryDevice != "" {
-			idInt, err := strconv.ParseInt(queryDevice, 10, 64)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			deviceID = idInt
+		reqParams, err := getQueryPageDeviceID(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		page := 1
-		queryPage := r.URL.Query().Get("page")
-		if queryPage != "" {
-			pageInt, err := strconv.Atoi(queryPage)
-			if err != nil {
-				logger.Error().Err(err).Str("endpoint", "GetDetectionTimelineHandler").
-					Str("param", "page").Send()
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			page = pageInt
-		}
-		params := history.DetectionTimelineParams{
-			DeviceID: deviceID,
-			Page:     page,
-		}
-		ds, dbErr := a.AppDeps.HistoryRepo.GetDetectionTimeline(ctx, params)
+		ds, dbErr := a.AppDeps.HistoryRepo.GetDetectionTimeline(
+			r.Context(),
+			history.DetectionTimelineParams{
+				DeviceID: reqParams.DeviceID,
+				Page:     reqParams.Page,
+			},
+		)
 		if dbErr != nil {
 			logger.Error().Err(dbErr).Str("endpoint", "GetDetectionTimelineHandler").
 				Msg("dbErr")
@@ -119,35 +100,19 @@ func GetDetectionTimelineHandler(a *app.App) http.HandlerFunc {
 
 func DetectionEventListHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		ctx := r.Context()
-		deviceID := int64(0)
-		queryDevice := r.URL.Query().Get("device_id")
-		if queryDevice != "" {
-			idInt, err := strconv.ParseInt(queryDevice, 10, 64)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			deviceID = idInt
+		reqParams, err := parseEventParams(r)
+		if err != nil {
+			logger.Error().Err(err).Str("endpoint", "DetectionEventListHandler").
+				Msg("queryParamParseErr")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		page := 1
-		queryPage := r.URL.Query().Get("page")
-		if queryPage != "" {
-			pageInt, err := strconv.Atoi(queryPage)
-			if err != nil {
-				logger.Error().Err(err).Str("endpoint", "DetectionEventListHandler").
-					Str("param", "page").Send()
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			page = pageInt
-		}
-		params := event.QueryParams{
-			DeviceID: deviceID,
-			Page:     page,
-		}
-		ds, dbErr := a.AppDeps.EventRepo.GetDetectionEvents(ctx, params)
+		ds, dbErr := a.AppDeps.EventRepo.GetDetectionEvents(r.Context(), event.QueryParams{
+			DeviceID: reqParams.DeviceID,
+			Page:     reqParams.Page,
+			Start:    reqParams.Start,
+			End:      reqParams.End,
+		})
 		if dbErr != nil {
 			logger.Error().Err(dbErr).Str("endpoint", "DetectionEventListHandler").
 				Msg("dbErr")
@@ -164,7 +129,6 @@ func DetectionEventListHandler(a *app.App) http.HandlerFunc {
 
 func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		ctx := r.Context()
 		idInt, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		logger.Debug().Str("endpoint", "DetectionEventDetailHandler").
@@ -193,4 +157,72 @@ func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
 		}
 		return
 	}
+}
+
+type EventParams struct {
+	DeviceID int64
+	Page     int
+	// Start is the minimum created_at value
+	Start time.Time
+	// End is the (optional) maximum created_at value
+	End time.Time
+}
+
+func parseEventParams(r *http.Request) (EventParams, error) {
+	pID, err := getQueryPageDeviceID(r)
+	if err != nil {
+		return EventParams{}, err
+	}
+	// start = now - (7 days)
+	start := time.Now().AddDate(0, 0, -7)
+	queryStart := r.URL.Query().Get("start")
+	if queryStart != "" {
+		startInt, sErr := strconv.ParseInt(queryStart, 10, 64)
+		if sErr != nil {
+			return EventParams{}, sErr
+		}
+		// Cast the epoch MS to a [time.Time]
+		start = time.UnixMilli(startInt)
+	}
+	end := time.Now()
+	queryEnd := r.URL.Query().Get("end")
+	if queryEnd != "" {
+		endInt, eErr := strconv.ParseInt(queryEnd, 10, 64)
+		if eErr != nil {
+			return EventParams{}, eErr
+		}
+		end = time.UnixMilli(endInt)
+	}
+	return EventParams{DeviceID: pID.DeviceID, Page: pID.Page, Start: start, End: end}, nil
+}
+
+type PageAndId struct {
+	Page     int
+	DeviceID int64
+}
+
+func getQueryPageDeviceID(r *http.Request) (PageAndId, error) {
+	deviceID := int64(0)
+	queryDevice := r.URL.Query().Get("device_id")
+	if queryDevice != "" {
+		idInt, err := strconv.ParseInt(queryDevice, 10, 64)
+		if err != nil {
+			//http.Error(w, err.Error(), http.StatusBadRequest)
+			return PageAndId{}, err
+		}
+		deviceID = idInt
+	}
+	page := 1
+	queryPage := r.URL.Query().Get("page")
+	if queryPage != "" {
+		pageInt, err := strconv.Atoi(queryPage)
+		if err != nil {
+			logger.Error().Err(err).Str("endpoint", "GetDetectionTimelineHandler").
+				Str("param", "page").Send()
+			//http.Error(w, err.Error(), http.StatusBadRequest)
+			return PageAndId{}, err
+		}
+		page = pageInt
+	}
+	return PageAndId{Page: page, DeviceID: deviceID}, nil
 }
