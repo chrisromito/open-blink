@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"devicecapture/internal/domain/event"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/pubsub"
 	"github.com/stretchr/testify/assert"
 )
@@ -44,6 +45,11 @@ func Test_Detection_Event_End_Fail(t *testing.T) {
 
 func getTestTracker() *DetectionTracker {
 	er := event.NewMockEventRepo()
-	client := &pubsub.MqttClient{}
-	return NewDetectionTracker(er, client)
+	client, err := pubsub.NewMockMqtt()
+	if err != nil {
+		logger.Error().Err(err).
+			Str("expect", "subsequent tests to fail").
+			Msg("getTestTracker threw an error")
+	}
+	return NewDetectionTracker(er, &client)
 }

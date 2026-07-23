@@ -23,7 +23,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 		return
 	}
-	fmt.Println("preRun complete, running remaining tests...")
 	code := m.Run()
 	fmt.Println("Test run complete, returning")
 	os.Exit(code)
@@ -32,14 +31,10 @@ func TestMain(m *testing.M) {
 func preRun(ctx context.Context, appDb *AppDb) error {
 	db := appDb.Db
 	_, err := db.Exec(ctx, "DELETE FROM devices")
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(ctx, "DELETE FROM detections")
 	return err
 }
 
-func TestPingTestDb(t *testing.T) {
+func Test_Ping_TestDb(t *testing.T) {
 	a := assert.New(t)
 	appDb, err := NewTestAppDb()
 	a.NoError(err)

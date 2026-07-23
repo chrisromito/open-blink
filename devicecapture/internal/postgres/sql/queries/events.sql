@@ -47,17 +47,29 @@ RETURNING *;
 
 -- name: UpdateEvent :one
 UPDATE detection_events
-SET labels =
+SET labels     =
         CASE
             WHEN @set_labels::bool
                 THEN @labels::text
             ELSE labels
             END,
-    state  =
+    state      =
         CASE
             WHEN @set_state::bool
                 THEN @state::INT
             ELSE state
+            END,
+    created_at =
+        CASE
+            WHEN @set_created_at::bool
+                THEN @created_at::timestamp
+            ELSE created_at
+            END,
+    ended_at   =
+        CASE
+            WHEN @set_ended_at::bool
+                THEN @ended_at::timestamp
+            ELSE ended_at
             END
 WHERE id = @id
 RETURNING *;
@@ -85,6 +97,6 @@ LIMIT 100;
 
 -- name: EndStaleDetectionEvents :exec
 UPDATE detection_events
-SET ended_at = NOW()
-WHERE ended_at = '0001-01-01 00:00:00.000000 +00:00'
-  AND created_at < (NOW() - INTERVAL '1 hour');
+SET ended_at = NOW(),
+    state    = 3
+WHERE ended_at = '0001-01-01 00:00:00.000000 +00:00';

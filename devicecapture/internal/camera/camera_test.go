@@ -15,7 +15,7 @@ import (
 // -----------------------------
 // ------------------------------
 
-func TestCameraService_Start(t *testing.T) {
+func Test_Camera_Service_Start(t *testing.T) {
 	deps := domain.NewMockDeps()
 	detect := detection.MockDetectionService{}
 	conf := config.Config{

@@ -194,16 +194,9 @@ func loopDevices(
 	if rErr != nil {
 		return rErr
 	}
-	//cs := camera.NewCameraService(
-	//	a.Conf,
-	//	a.AppDeps,
-	//	detection.NewObjectDetectionService(a.Conf),
-	//	a.MqttClient,
-	//)
 	if motionDetected {
 		return captureStreams(ctx, deviceList, cs)
 	}
-
 	return captureSnapshots(ctx, deviceList, cs)
 }
 
@@ -226,7 +219,7 @@ func captureStreams(ctx context.Context, ds []devices.Device, cs *camera.CameraS
 	g, c := errgroup.WithContext(ctx)
 	for _, device := range ds {
 		g.Go(func() error {
-			_, err := cs.StartStream(c, device.StringId())
+			err := cs.StreamSnapshots(c, device, 15)
 			if err != nil {
 				logger.Error().Str("fn", "main.captureSnapshots").
 					Err(err).Send()

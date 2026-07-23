@@ -20,7 +20,7 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-func TestApi_Ping_Success(t *testing.T) {
+func Test_Api_Ping_Success(t *testing.T) {
 	server := newTestServer(t.Context())
 	defer server.Close()
 
@@ -31,7 +31,7 @@ func TestApi_Ping_Success(t *testing.T) {
 	}
 }
 
-func TestApi_Ping_Failure_NetworkError(t *testing.T) {
+func Test_Api_Ping_Failure_NetworkError(t *testing.T) {
 	// Use an invalid URL to simulate network errors
 	api := NewApi("test-domain", "http://invalid-url-that-does-not-exist:5000")
 
@@ -40,7 +40,7 @@ func TestApi_Ping_Failure_NetworkError(t *testing.T) {
 	}
 }
 
-func TestApi_StreamFrames_Success(t *testing.T) {
+func Test_Api_StreamFrames_Success(t *testing.T) {
 	server := newTestServer(t.Context())
 	defer server.Close()
 
@@ -71,7 +71,7 @@ func TestApi_StreamFrames_Success(t *testing.T) {
 	}
 }
 
-func TestApi_StreamFrames_NetworkError(t *testing.T) {
+func Test_Api_StreamFrames_NetworkError(t *testing.T) {
 	api := NewApi("test-domain", "http://invalid-url-that-does-not-exist:5000")
 	imgChan := make(chan receiver.Frame, 1)
 	done := make(chan error, 1)
@@ -95,7 +95,7 @@ func TestApi_StreamFrames_NetworkError(t *testing.T) {
 	//}
 }
 
-func TestApi_Stream_ContextCancellation(t *testing.T) {
+func Test_Api_Stream_ContextCancellation(t *testing.T) {
 	// Create a server that streams indefinitely
 	server := newTestServer(t.Context())
 	defer server.Close()
@@ -194,7 +194,7 @@ func addLabel(img *image.RGBA, x, y int, label string) {
 }
 
 // Benchmark tests
-func BenchmarkNewFrame(b *testing.B) {
+func Benchmark_New_Frame(b *testing.B) {
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
 
 	b.ResetTimer()
@@ -203,7 +203,7 @@ func BenchmarkNewFrame(b *testing.B) {
 	}
 }
 
-func BenchmarkApi_Ping(b *testing.B) {
+func Benchmark_Api_Ping(b *testing.B) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

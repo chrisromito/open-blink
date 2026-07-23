@@ -28,7 +28,7 @@ func createTestDetection(label string, x1, y1, x2, y2 float64) detection.Detecti
 	}
 }
 
-func TestDrawBoundingBox(t *testing.T) {
+func Test_Draw_Bounding_Box(t *testing.T) {
 	tests := []struct {
 		name   string
 		width  int
@@ -91,7 +91,7 @@ func TestDrawBoundingBox(t *testing.T) {
 	}
 }
 
-func TestDrawBBox(t *testing.T) {
+func Test_Draw_BBox(t *testing.T) {
 	tests := []struct {
 		name   string
 		width  int
@@ -139,7 +139,7 @@ func TestDrawBBox(t *testing.T) {
 	}
 }
 
-func TestDrawDetections(t *testing.T) {
+func Test_Draw_Detections(t *testing.T) {
 	tests := []struct {
 		name       string
 		width      int
@@ -200,7 +200,7 @@ func TestDrawDetections(t *testing.T) {
 	}
 }
 
-func TestDrawLabel(t *testing.T) {
+func Test_Draw_Label(t *testing.T) {
 	tests := []struct {
 		name   string
 		width  int
@@ -255,7 +255,7 @@ func TestDrawLabel(t *testing.T) {
 	}
 }
 
-func TestDrawFunctionsWithInvalidInputs(t *testing.T) {
+func Test_Draw_Functions_With_InvalidInputs(t *testing.T) {
 	t.Run("out_of_bounds_bounding_box", func(t *testing.T) {
 		a := assert.New(t)
 		img := createTestImage(50, 50)

@@ -60,6 +60,18 @@ func NewMqttClient(cId, broker, user, password string) (MqttClient, error) {
 	return c, nil
 }
 
+func NewMockMqtt() (MqttClient, error) {
+	cOpts := mqtt.NewClientOptions()
+	opt := ClientOptions{
+		ClientID: cOpts.ClientID,
+		Broker:   "",
+		User:     cOpts.Username,
+		Password: cOpts.Password,
+	}
+	c := NewMockClient()
+	return MqttClient{Client: c, opts: &opt}, nil
+}
+
 func (m *MqttClient) Valid() bool {
 	return m.Client != nil
 }

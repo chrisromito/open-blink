@@ -34,9 +34,9 @@ func (q *Queries) EndEvent(ctx context.Context, id int64) (DetectionEvent, error
 
 const endStaleDetectionEvents = `-- name: EndStaleDetectionEvents :exec
 UPDATE detection_events
-SET ended_at = NOW()
+SET ended_at = NOW(),
+    state    = 3
 WHERE ended_at = '0001-01-01 00:00:00.000000 +00:00'
-  AND created_at < (NOW() - INTERVAL '1 hour')
 `
 
 func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
@@ -230,28 +230,44 @@ func (q *Queries) StartEvent(ctx context.Context, arg StartEventParams) (Detecti
 
 const updateEvent = `-- name: UpdateEvent :one
 UPDATE detection_events
-SET labels =
+SET labels     =
         CASE
             WHEN $1::bool
                 THEN $2::text
             ELSE labels
             END,
-    state  =
+    state      =
         CASE
             WHEN $3::bool
                 THEN $4::INT
             ELSE state
+            END,
+    created_at =
+        CASE
+            WHEN $5::bool
+                THEN $6::timestamp
+            ELSE created_at
+            END,
+    ended_at   =
+        CASE
+            WHEN $7::bool
+                THEN $8::timestamp
+            ELSE ended_at
             END
-WHERE id = $5
+WHERE id = $9
 RETURNING id, device_id, created_at, ended_at, labels, state
 `
 
 type UpdateEventParams struct {
-	SetLabels bool   `db:"set_labels" json:"set_labels"`
-	Labels    string `db:"labels" json:"labels"`
-	SetState  bool   `db:"set_state" json:"set_state"`
-	State     int32  `db:"state" json:"state"`
-	ID        int64  `db:"id" json:"id"`
+	SetLabels    bool      `db:"set_labels" json:"set_labels"`
+	Labels       string    `db:"labels" json:"labels"`
+	SetState     bool      `db:"set_state" json:"set_state"`
+	State        int32     `db:"state" json:"state"`
+	SetCreatedAt bool      `db:"set_created_at" json:"set_created_at"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	SetEndedAt   bool      `db:"set_ended_at" json:"set_ended_at"`
+	EndedAt      time.Time `db:"ended_at" json:"ended_at"`
+	ID           int64     `db:"id" json:"id"`
 }
 
 func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (DetectionEvent, error) {
@@ -260,6 +276,10 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Detec
 		arg.Labels,
 		arg.SetState,
 		arg.State,
+		arg.SetCreatedAt,
+		arg.CreatedAt,
+		arg.SetEndedAt,
+		arg.EndedAt,
 		arg.ID,
 	)
 	var i DetectionEvent

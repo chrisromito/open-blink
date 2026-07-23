@@ -145,7 +145,9 @@ func (de *PgDetectionEventRepo) dbToDomain(evt db.DetectionEvent) dEvent.Detecti
 func (de *PgDetectionEventRepo) detailsDbToDomain(
 	rows []db.GetEventDetailsRow,
 ) dEvent.DetectionDetail {
-	temp := dEvent.DetectionDetail{}
+	temp := dEvent.DetectionDetail{
+		Details: []dEvent.ImageDetails{},
+	}
 	var usedImageIDs []int64
 	//var details []dEvent.ImageDetails
 	for _, row := range rows {

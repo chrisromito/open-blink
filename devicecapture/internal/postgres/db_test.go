@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetDevices(t *testing.T) {
+func Test_Get_Devices(t *testing.T) {
 	t.Skip("This is annoying")
 	tests := []struct {
 		name string

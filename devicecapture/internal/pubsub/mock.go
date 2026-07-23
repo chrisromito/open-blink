@@ -43,11 +43,11 @@ func (f *FakeClient) Publish(
 	return &FakeToken{}
 }
 
-func (f *FakeClient) Subscribe(t string, h mqtt.MessageHandler) error {
+func (f *FakeClient) Subscribe(topic string, qos byte, callback mqtt.MessageHandler) mqtt.Token {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.handlers[t] = h
-	return nil
+	f.handlers[topic] = callback
+	return &FakeToken{}
 }
 
 func (f *FakeClient) pushMessage(topic string, payload interface{}) {

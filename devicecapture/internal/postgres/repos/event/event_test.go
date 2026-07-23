@@ -7,6 +7,7 @@ import (
 	"devicecapture/internal/config"
 	"devicecapture/internal/domain/devices"
 	dEvent "devicecapture/internal/domain/event"
+	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"github.com/stretchr/testify/assert"
@@ -181,10 +182,14 @@ func Test_Get_Detection_Events(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
-	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
+	ctx := t.Context()
+	_, dErr := appDb.Db.Exec(ctx, "DELETE FROM detection_events")
+	a.NoError(dErr)
+	_, dErr = appDb.Db.Exec(ctx, "DELETE FROM detections")
+	a.NoError(dErr)
+	testDevice, deviceErr := repos.GetOrCreateTestDevice(ctx, q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
-	ctx := t.Context()
 
 	// Write 15 records to the DB and read them out
 	toWrite := []struct {
@@ -217,7 +222,7 @@ func Test_Get_Detection_Events(t *testing.T) {
 		detectionRepo := repos.NewPgDetectionRepo(q)
 
 		for _, label := range labels {
-			_, err := detectionRepo.CreateDetection(t.Context(), devices.CreateDetectionParams{
+			_, err := detectionRepo.CreateDetection(ctx, devices.CreateDetectionParams{
 				DeviceID:   id,
 				Label:      label,
 				Confidence: 0.9,
@@ -229,7 +234,7 @@ func Test_Get_Detection_Events(t *testing.T) {
 		return nil
 	}
 
-	writeCount := 0
+	eventCount := 0
 	for _, params := range toWrite {
 		for i := range 3 {
 			fmt.Println(i)
@@ -239,7 +244,7 @@ func Test_Get_Detection_Events(t *testing.T) {
 			a.NoError(err)
 			_, err = repo.EndEvent(ctx, de)
 			a.NoError(err)
-			writeCount++
+			eventCount++
 		}
 	}
 
@@ -248,23 +253,37 @@ func Test_Get_Detection_Events(t *testing.T) {
 			DeviceID: deviceID,
 		}
 		results, err := repo.GetDetectionEvents(t.Context(), param)
+
+		logger.Warn().
+			Time("startdt", param.Start).
+			Time("enddt", param.End).
+			Int("# results", len(results)).
+			Int("# written", eventCount).
+			Msg("read_first_page")
+		//for i, r := range results {
+		//	logger.Warn().Int("index", i).
+		//		Int64("id", r.ID).
+		//		Time("created_at", r.CreatedAt).
+		//		Time("ended_at", r.EndedAt).
+		//		Send()
+		//}
 		assert.NoError(t, err)
-		assert.NotEmpty(t, results)
-		assert.Equal(t, len(results), writeCount)
+		assert.Equal(t, eventCount, len(results))
 	})
 
-	t.Run("read_first_page", func(t *testing.T) {
+	t.Run("read_nonexistent_page", func(t *testing.T) {
 		// querying for a page # that doesn't exist returns empty instead of an error
 		param := dEvent.QueryParams{
 			DeviceID: deviceID,
-			Page:     100,
+			Page:     254,
 		}
-		_, err := repo.GetDetectionEvents(t.Context(), param)
+		result, err := repo.GetDetectionEvents(t.Context(), param)
 		assert.NoError(t, err)
+		assert.Empty(t, result)
 	})
 
 	t.Run("read_started_events", func(t *testing.T) {
-		started, dErr := repo.StartEvent(ctx, deviceID, []string{"unfinished"})
+		started, dErr := repo.StartEvent(t.Context(), deviceID, []string{"unfinished"})
 		assert.NoError(t, dErr)
 		assert.NotEmpty(t, started)
 		param := dEvent.QueryParams{
@@ -273,6 +292,7 @@ func Test_Get_Detection_Events(t *testing.T) {
 		}
 		records, err := repo.GetDetectionEvents(t.Context(), param)
 		assert.NoError(t, err)
+		assert.Greater(t, len(records), 0)
 		for _, de := range records {
 			assert.Equal(t, de.State, int(dEvent.Started), "State query param works as a filter")
 		}

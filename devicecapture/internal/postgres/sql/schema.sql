@@ -27,16 +27,16 @@ CREATE INDEX device_heartbeats__device_id__idx
 -- Images
 CREATE TABLE device_images
 (
-    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    device_id  bigint                                 NOT NULL
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    device_id      bigint                                 NOT NULL
         CONSTRAINT device_images_device__fk
             REFERENCES devices
             ON DELETE CASCADE,
-    created_at timestamp with time zone DEFAULT NOW() NOT NULL,
-    image_path varchar(250)                           NOT NULL,
+    created_at     timestamp with time zone DEFAULT NOW() NOT NULL,
+    image_path     varchar(250)                           NOT NULL,
     annotated_path varchar(250),
     UNIQUE (image_path),
-    UNIQUE(annotated_path)
+    UNIQUE (annotated_path)
 );
 
 CREATE INDEX device_images__created_at_idx
@@ -67,19 +67,18 @@ CREATE INDEX detections__device_id__idx
     ON detections (device_id);
 
 
-
 -- Events
 CREATE TABLE detection_events
 (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    device_id  bigint                                 NOT NULL
+    device_id  bigint NOT NULL
         CONSTRAINT detection_event_device__fk
             REFERENCES devices
             ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT NOW() NOT NULL,
-    ended_at timestamp with time zone,
-    labels      varchar(250),
-    state      int not null default 1
+    ended_at   timestamp with time zone,
+    labels     varchar(250),
+    state      int    NOT NULL          DEFAULT 1
 );
 
 CREATE INDEX detection_events__created_at_idx

@@ -62,7 +62,7 @@ func setupTestDir(t *testing.T) (string, func()) {
 	}
 }
 
-func TestNewMqttReceiver(t *testing.T) {
+func Test_New_MqttReceiver(t *testing.T) {
 	tests := []struct {
 		name   string
 		client *MqttClient
@@ -92,7 +92,7 @@ func TestNewMqttReceiver(t *testing.T) {
 	}
 }
 
-func TestMqttReceiver_StartSession(t *testing.T) {
+func Test_MqttReceiver_StartSession(t *testing.T) {
 	tempDir, cleanup := setupTestDir(t)
 	defer cleanup()
 	a := assert.New(t)
@@ -119,7 +119,7 @@ func TestMqttReceiver_StartSession(t *testing.T) {
 	a.NotEqual(session.StartedAt, 0, "StartedAt should not be zero")
 }
 
-func TestFrameJson(t *testing.T) {
+func Test_FrameJson(t *testing.T) {
 	deviceId := "test-domain"
 	fileName := "/path/to/test.jpg"
 	frame := createTestFrame(1234567890)
@@ -147,7 +147,7 @@ func TestFrameJson(t *testing.T) {
 }
 
 // Benchmark tests
-func BenchmarkFrameJson(b *testing.B) {
+func Benchmark_FrameJson(b *testing.B) {
 	deviceId := "bench-domain"
 	fileName := "/path/to/bench.jpg"
 	frame := createTestFrame(1234567890)

@@ -11,17 +11,25 @@ import (
 )
 
 const createDetection = `-- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence, image_id, bbox)
-VALUES (DEFAULT, $1, $2, $3, $4, $5)
+INSERT INTO detections (id, device_id, label, confidence, image_id, bbox, created_at)
+VALUES (DEFAULT, $1, $2, $3, $4, $5, (
+    CASE
+        WHEN $6::bool
+            THEN $7::timestamp
+        ELSE NOW()
+        END
+    ))
 RETURNING id, device_id, image_id, created_at, label, confidence, bbox
 `
 
 type CreateDetectionParams struct {
-	DeviceID   int64       `db:"device_id" json:"device_id"`
-	Label      string      `db:"label" json:"label"`
-	Confidence float64     `db:"confidence" json:"confidence"`
-	ImageID    *int64      `db:"image_id" json:"image_id"`
-	Bbox       [][]float64 `db:"bbox" json:"bbox"`
+	DeviceID     int64       `db:"device_id" json:"device_id"`
+	Label        string      `db:"label" json:"label"`
+	Confidence   float64     `db:"confidence" json:"confidence"`
+	ImageID      *int64      `db:"image_id" json:"image_id"`
+	Bbox         [][]float64 `db:"bbox" json:"bbox"`
+	SetCreatedAt bool        `db:"set_created_at" json:"set_created_at"`
+	CreatedAt    time.Time   `db:"created_at" json:"created_at"`
 }
 
 // ---------------
@@ -34,6 +42,8 @@ func (q *Queries) CreateDetection(ctx context.Context, arg CreateDetectionParams
 		arg.Confidence,
 		arg.ImageID,
 		arg.Bbox,
+		arg.SetCreatedAt,
+		arg.CreatedAt,
 	)
 	var i Detection
 	err := row.Scan(

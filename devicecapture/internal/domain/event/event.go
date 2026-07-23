@@ -32,10 +32,10 @@ func DetectionStateFromValue(value int) (DetectionState, error) {
 		return Down, nil
 	case 2:
 		return Started, nil
-	default:
-		return Unknown, errors.New("invalid value for DetectionState")
 	case 3:
 		return Ended, nil
+	default:
+		return Unknown, errors.New("invalid value for DetectionState")
 	}
 }
 

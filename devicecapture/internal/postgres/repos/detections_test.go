@@ -14,7 +14,7 @@ var validBbox = [][]float64{
 	{0.3, 0.4},
 }
 
-func TestCreateDetection(t *testing.T) {
+func Test_Create_Detection(t *testing.T) {
 	appDb, dbErr := postgres.NewTestAppDb()
 	assert.NoError(t, dbErr)
 	defer appDb.Db.Close()
@@ -115,7 +115,7 @@ func TestCreateDetection(t *testing.T) {
 	})
 }
 
-func TestGetDetectionsAfter(t *testing.T) {
+func Test_Get_Detections_After(t *testing.T) {
 	appDb, dbErr := postgres.NewTestAppDb()
 	a := assert.New(t)
 	a.NoError(dbErr)

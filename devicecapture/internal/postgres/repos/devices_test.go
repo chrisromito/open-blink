@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreateDevices(t *testing.T) {
+func Test_Create_Devices(t *testing.T) {
 	a := assert.New(t)
 	appDb, dbErr := postgres.NewTestAppDb()
 	a.NoError(dbErr)

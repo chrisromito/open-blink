@@ -100,6 +100,66 @@ func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 	return s.receiveFrame(ctx, d, fp, ap, frame)
 }
 
+// StreamSnapshots streams [receiver.Frame] from the [devices.Device] for [seconds].
+// This method uses the `snapshot` endpoint, which is less taxing on the camera device than streaming MJPEG frames.
+func (s *CameraService) StreamSnapshots(ctx context.Context, d devices.Device, seconds int) error {
+	stringId := d.StringId()
+	if s.IsStreaming(stringId) {
+		return errors.New("cannot start stream for device")
+	}
+
+	s.addId(stringId)
+	defer s.removeId(stringId)
+
+	session, sErr := s.FrameRepo.StartSession(stringId)
+	if sErr != nil {
+		return sErr
+	}
+	defer func(FrameRepo receiver.FrameRepository) {
+		_ = FrameRepo.EndSession(session)
+	}(s.FrameRepo)
+
+	api := NewApi(stringId, d.DeviceUrl)
+	streamCtx, cancel := context.WithTimeout(ctx, time.Duration(seconds)*time.Second)
+	defer cancel()
+
+	// Allow backpressure of 3 frames
+	imgChan := make(chan receiver.Frame, 3)
+	defer close(imgChan)
+
+	var wg sync.WaitGroup
+
+	// Sender go routine fetches JPEGs every 250 milliseconds and pushes them into imgChan
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		camTimer := time.NewTicker(250 * time.Millisecond)
+		for {
+			select {
+			case <-streamCtx.Done():
+				return
+			case <-camTimer.C:
+				frame, err := api.Snapshot(streamCtx)
+				if err != nil {
+					logger.Error().Err(err).
+						Str("camera", "StreamSnapshots").
+						Msg("err fetching JPEG, cancelling")
+					cancel()
+					return
+				}
+				imgChan <- frame
+			}
+		}
+	}()
+
+	// runFrameProcessor go routine pulls frames from imgChan
+	wg.Add(1)
+	go s.runFrameProcessor(&wg, streamCtx, d, session, imgChan)
+
+	wg.Wait()
+	return nil
+}
+
 // StartStream wraps the process of checking if a device is streaming, validating the device ID,
 // starting the CaptureSession, and managing the streaming workflow.
 func (s *CameraService) StartStream(
@@ -140,7 +200,7 @@ func (s *CameraService) StartStream(
 	return session, nil
 }
 
-// runApiStreamer handles connecting to the API and piping frames to the channel
+// runApiStreamer handles connecting to the API and passing frames to the "imgChan" channel
 func (s *CameraService) runApiStreamer(
 	wg *sync.WaitGroup,
 	ctx context.Context,
@@ -160,7 +220,7 @@ func (s *CameraService) runApiStreamer(
 func (s *CameraService) runFrameProcessor(
 	wg *sync.WaitGroup,
 	ctx context.Context,
-	device devices.Device, // Replace with your actual Device type if different
+	device devices.Device,
 	session *receiver.CaptureSession,
 	imgChan <-chan receiver.Frame,
 ) {

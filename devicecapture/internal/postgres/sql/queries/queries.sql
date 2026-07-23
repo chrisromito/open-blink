@@ -83,8 +83,14 @@ WHERE device_id = $1;
 -- Detections
 -----------------
 -- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence, image_id, bbox)
-VALUES (DEFAULT, $1, $2, $3, $4, $5)
+INSERT INTO detections (id, device_id, label, confidence, image_id, bbox, created_at)
+VALUES (DEFAULT, @device_id, @label, @confidence, @image_id, @bbox, (
+    CASE
+        WHEN @set_created_at::bool
+            THEN @created_at::timestamp
+        ELSE NOW()
+        END
+    ))
 RETURNING *;
 
 -- name: CreateDetections :copyfrom
