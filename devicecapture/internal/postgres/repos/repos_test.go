@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -19,19 +18,20 @@ func TestMain(m *testing.M) {
 		return
 	}
 	defer appDb.Db.Close()
-	ctx := context.Background()
-	_, err = appDb.Db.Exec(ctx, "DELETE FROM detections")
-	if err != nil {
-		os.Exit(1)
-		return
-	}
-	_, err = appDb.Db.Exec(ctx, "DELETE FROM devices")
-	if err != nil {
-		os.Exit(1)
-		return
-	}
+
 	logger.Info().Msg("repos_test preRun complete, running remaining tests...")
 	code := m.Run()
+	//ctx := context.Background()
+	//_, err = appDb.Db.Exec(ctx, "DELETE FROM detections")
+	//if err != nil {
+	//	os.Exit(1)
+	//	return
+	//}
+	//_, err = appDb.Db.Exec(ctx, "DELETE FROM devices")
+	//if err != nil {
+	//	os.Exit(1)
+	//	return
+	//}
 	logger.Info().Msg("Test run complete, returning")
 	os.Exit(code)
 }

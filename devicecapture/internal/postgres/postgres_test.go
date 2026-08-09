@@ -29,9 +29,10 @@ func TestMain(m *testing.M) {
 }
 
 func preRun(ctx context.Context, appDb *AppDb) error {
-	db := appDb.Db
-	_, err := db.Exec(ctx, "DELETE FROM devices")
-	return err
+	//db := appDb.Db
+	//_, err := db.Exec(ctx, "DELETE FROM devices")
+	//return err
+	return nil
 }
 
 func Test_Ping_TestDb(t *testing.T) {

@@ -54,8 +54,9 @@ func Test_Labels_To_Db(t *testing.T) {
 
 func Test_Slice_Eq(t *testing.T) {
 	tests := []struct {
-		left    []string
-		right   []string
+		left  []string
+		right []string
+		// eq determines if we assert that left == right
 		eq      bool
 		message string
 	}{
@@ -79,9 +80,9 @@ func Test_Slice_Eq(t *testing.T) {
 		},
 		{
 			left:    []string{"car", "truck"},
-			right:   []string{"truck"},
+			right:   []string{"person", "truck"},
 			eq:      false,
-			message: "slice lengths must be equal",
+			message: "slice values must be equal",
 		},
 	}
 
@@ -101,7 +102,7 @@ func Test_Start_DetectionEvent(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
-	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := repos.GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
 
@@ -133,19 +134,18 @@ func Test_Start_DetectionEvent(t *testing.T) {
 	ctx := t.Context()
 	for _, test := range tests {
 		result, err := repo.StartEvent(ctx, test.deviceID, test.labels)
-		if !test.wantErr {
+		if test.wantErr {
+			a.Error(err, test.message)
+			a.Empty(result, test.message)
+		} else {
 			a.NoError(err, test.message)
 			a.NotEmpty(result, test.message)
 			a.True(result.EndedAt.IsZero(), "EndedAt is zero-valued when starting a DetectionEvent")
 		}
-		if test.wantErr {
-			a.Error(err, test.message)
-			a.Empty(result, test.message)
-		}
 	}
 }
 
-// Test_Start_DetectionEvent Integration Tests for PgDetectionEventRepo "EndEvent" logic
+// Test_End_DetectionEvent Integration Tests for PgDetectionEventRepo "EndEvent" logic
 func Test_End_DetectionEvent(t *testing.T) {
 	a := assert.New(t)
 	appDb, dbErr := postgres.NewTestAppDb()
@@ -153,7 +153,7 @@ func Test_End_DetectionEvent(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
-	testDevice, deviceErr := repos.GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := repos.GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
 	ctx := t.Context()
@@ -183,11 +183,11 @@ func Test_Get_Detection_Events(t *testing.T) {
 	q := appDb.GetQueries()
 	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
 	ctx := t.Context()
-	_, dErr := appDb.Db.Exec(ctx, "DELETE FROM detection_events")
-	a.NoError(dErr)
-	_, dErr = appDb.Db.Exec(ctx, "DELETE FROM detections")
-	a.NoError(dErr)
-	testDevice, deviceErr := repos.GetOrCreateTestDevice(ctx, q)
+	//_, dErr := appDb.Db.Exec(ctx, "DELETE FROM detection_events")
+	//a.NoError(dErr)
+	//_, dErr = appDb.Db.Exec(ctx, "DELETE FROM detections")
+	//a.NoError(dErr)
+	testDevice, deviceErr := repos.GetTestDevice(ctx, q)
 	a.NoError(deviceErr)
 	deviceID := testDevice.ID
 

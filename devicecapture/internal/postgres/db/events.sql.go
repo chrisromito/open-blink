@@ -44,6 +44,24 @@ func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
 	return err
 }
 
+const getEvent = `-- name: GetEvent :one
+SELECT id, device_id, created_at, ended_at, labels, state FROM detection_events WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetEvent(ctx context.Context, id int64) (DetectionEvent, error) {
+	row := q.db.QueryRow(ctx, getEvent, id)
+	var i DetectionEvent
+	err := row.Scan(
+		&i.ID,
+		&i.DeviceID,
+		&i.CreatedAt,
+		&i.EndedAt,
+		&i.Labels,
+		&i.State,
+	)
+	return i, err
+}
+
 const getEventDetails = `-- name: GetEventDetails :many
 SELECT detection_events.id, detection_events.device_id, detection_events.created_at, detection_events.ended_at, detection_events.labels, detection_events.state,
        device_images.id      AS image_id,
@@ -56,8 +74,8 @@ SELECT detection_events.id, detection_events.device_id, detection_events.created
        detections.bbox,
        detections.image_id   AS detected_image_id
 FROM detection_events
-         JOIN device_images ON device_images.device_id = detection_events.device_id
-         JOIN detections ON detections.image_id = device_images.id
+         JOIN device_images ON device_images.event_id = detection_events.id
+         JOIN detections ON detections.event_id = detection_events.id
 WHERE detection_events.id = $1
   AND detections.created_at >= detection_events.created_at
   AND detections.created_at <= detection_events.ended_at

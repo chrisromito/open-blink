@@ -4,14 +4,37 @@ import (
 	"context"
 	"math/rand/v2"
 	"slices"
+	"sync"
 	"time"
 )
 
 type MockEventRepo struct {
+	events    []DetectionEvent
+	mu        sync.Mutex
+	currentID int64
 }
 
 func NewMockEventRepo() *MockEventRepo {
-	return &MockEventRepo{}
+	return &MockEventRepo{
+		events:    []DetectionEvent{},
+		mu:        sync.Mutex{},
+		currentID: 1,
+	}
+}
+
+// GetEvent implements [DetectionEventRepo]
+func (de *MockEventRepo) GetEvent(
+	_ context.Context,
+	id int64,
+) (DetectionEvent, error) {
+	de.mu.Lock()
+	defer de.mu.Unlock()
+	for _, evt := range de.events {
+		if evt.ID == id {
+			return evt, nil
+		}
+	}
+	return DetectionEvent{}, nil
 }
 
 // StartEvent implements DetectionEventRepo
@@ -20,16 +43,19 @@ func (de *MockEventRepo) StartEvent(
 	deviceID int64,
 	labels []string,
 ) (DetectionEvent, error) {
+	de.mu.Lock()
+	defer de.mu.Unlock()
 	ls := slices.Clone(labels)
 	slices.Sort(ls)
 	evt := DetectionEvent{
-		ID:        int64(1),
+		ID:        de.getNextID(),
 		CreatedAt: time.Now(),
 		EndedAt:   time.Time{},
 		DeviceID:  deviceID,
 		Labels:    ls,
 		State:     2,
 	}
+	de.events = append(de.events, evt)
 	return evt, nil
 }
 
@@ -38,16 +64,16 @@ func (de *MockEventRepo) EndEvent(
 	_ context.Context,
 	e DetectionEvent,
 ) (DetectionEvent, error) {
-	// Copy all fields over to a new struct with [event.Ended] state and [EndedAt] set to [time.Now]
-	evt := DetectionEvent{
-		ID:        e.ID + int64(1),
-		CreatedAt: e.CreatedAt,
-		Labels:    e.Labels,
-		// Flag it as "ended"
-		EndedAt: time.Now(),
-		State:   3,
+	de.mu.Lock()
+	defer de.mu.Unlock()
+	for i := range de.events {
+		if de.events[i].ID == e.ID {
+			de.events[i].State = int(Ended)
+			de.events[i].EndedAt = time.Now()
+			return de.events[i], nil
+		}
 	}
-	return evt, nil
+	return DetectionEvent{}, nil
 }
 
 // GetDetectionEvents implements DetectionEventRepo
@@ -82,6 +108,12 @@ func (de *MockEventRepo) GetDetectionsForEvent(
 	eventID int64,
 ) (DetectionDetail, error) {
 	return DetectionDetail{ID: eventID}, nil
+}
+
+func (de *MockEventRepo) getNextID() int64 {
+	next := de.currentID + 1
+	de.currentID = next
+	return next
 }
 
 func GetRandomLabels(n int) []string {

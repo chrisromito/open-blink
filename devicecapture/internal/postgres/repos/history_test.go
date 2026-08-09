@@ -18,7 +18,7 @@ func Test_Pg_History_Repo(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionRepo(q)
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	imageRepo := NewPgImageRepo(q)
 	testImage, iErr := imageRepo.CreateImage(t.Context(), devices.CreateImageParams{

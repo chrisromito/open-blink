@@ -3,12 +3,11 @@ package repos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"devicecapture/internal/domain/devices"
-	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres/db"
-	"github.com/jackc/pgx/v5"
 )
 
 // PgDeviceRepo implements devices.DeviceRepository
@@ -120,15 +119,11 @@ func DeviceDbToDomain(d db.Device) devices.Device {
 	}
 }
 
-func GetOrCreateTestDevice(ctx context.Context, q *db.Queries) (db.Device, error) {
-	d, err := q.GetTestDevice(ctx)
-	if err == nil {
-		return d, nil
+func GetTestDevice(ctx context.Context, q *db.Queries) (db.Device, error) {
+	name := fmt.Sprintf("mockdevice-%s", generateRandomString(25))
+	d, err := q.CreateTestDevice(ctx, name)
+	if err != nil {
+		return db.Device{}, err
 	}
-	if errors.Is(err, pgx.ErrNoRows) || d.ID == 0 {
-		logger.Debug().Msgf("No test device found, creating it")
-		return q.CreateTestDevice(ctx)
-	}
-	logger.Error().Msgf("GetOrCreateTestDevice ERROR %v", err)
-	return db.Device{}, err
+	return d, nil
 }

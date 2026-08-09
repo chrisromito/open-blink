@@ -3,6 +3,7 @@ package camera
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image/jpeg"
 	"os"
 	"slices"
@@ -52,7 +53,7 @@ func NewCameraService(
 		connectedIds:  ids,
 		Detector:      detector,
 		mqttClient:    qtClient,
-		tracker:       NewDetectionTracker(deps.EventRepo, qtClient),
+		tracker:       NewDetectionTracker(deps, qtClient),
 		mu:            sync.Mutex{},
 	}
 	return cs
@@ -216,7 +217,7 @@ func (s *CameraService) runApiStreamer(
 	}
 }
 
-// runFrameProcessor consumes incoming frames and processes them
+// runFrameProcessor receives frames and generates file paths before handing off to [CameraService.receiveFrame]
 func (s *CameraService) runFrameProcessor(
 	wg *sync.WaitGroup,
 	ctx context.Context,
@@ -342,7 +343,7 @@ func (s *CameraService) receiveFrame(
 			}
 			return
 		}
-		err := s.receiveDetectionResponse(ctx, device, frame, detections, framePath, ap)
+		records, err := s.receiveDetectionResponse(ctx, device, frame, detections, framePath, ap)
 		if err != nil {
 			logger.Error().Str("service", "camera.receiveFrame").
 				Str("threwFrom", "receiveDetectionResponse").
@@ -350,7 +351,7 @@ func (s *CameraService) receiveFrame(
 				Send()
 			return
 		}
-		err = s.trackDetections(ctx, device, detections)
+		err = s.trackDetections(ctx, device, records)
 		if err != nil {
 			logger.Error().Str("service", "camera.receiveFrame").
 				Str("threwFrom", "trackDetections").
@@ -395,25 +396,12 @@ func (s *CameraService) receiveFrame(
 func (s *CameraService) trackDetections(
 	ctx context.Context,
 	device devices.Device,
-	detections []detection.Detection,
+	detections []devices.Detection,
 ) error {
-	var labels []string
-	for _, d := range detections {
-		labels = append(labels, d.Label)
-	}
-	// start a DetectionEvent if needed
-	if !s.tracker.HasEvent(device.ID) {
-		err := s.tracker.Start(ctx, device.ID, labels)
-		if err != nil {
-			logger.Error().Str("CameraService", "receiveFrame").
-				Err(err).Send()
-			return err
-		}
-		return nil
-	}
 	// now we can push the labels into DetectionTracker and determine
 	// if this is the end of a DetectionEvent
-	same := s.tracker.LabelsEq(device.ID, labels)
+	same := s.tracker.ReceiveDetections(device.ID, detections)
+
 	// If labels changed we need to end the DetectionEvent and start a new one
 	if !same {
 		logger.Debug().Str("CameraService", "receiveFrame").
@@ -430,7 +418,7 @@ func (s *CameraService) trackDetections(
 		logger.Debug().Str("CameraService", "receiveFrame").
 			Str("goroutine", "tracker.End").
 			Msg("labels changed Starting Next DetectionEvent")
-		err = s.tracker.Start(ctx, device.ID, labels)
+		err = s.tracker.Start(ctx, device.ID, DetectionLabels(detections))
 		if err != nil {
 			logger.Error().Str("CameraService", "receiveFrame").
 				Str("goroutine", "tracker.Start (after ending)").
@@ -453,7 +441,7 @@ func (s *CameraService) receiveDetectionResponse(
 	detections []detection.Detection,
 	framePath string,
 	ap string,
-) error {
+) ([]devices.Detection, error) {
 	imageRecord, err := s.ImageRepo.CreateImage(
 		ctx,
 		devices.CreateImageParams{DeviceID: device.ID, ImagePath: framePath, AnnotatedPath: ap},
@@ -463,31 +451,17 @@ func (s *CameraService) receiveDetectionResponse(
 			Str("threwFrom", "camera.ImageRepo.CreateImage").
 			Str("failed to save image to", framePath).
 			Err(err).Send()
-		return err
+		return []devices.Detection{}, err
 	}
+	//s.tracker.AddImage(device.ID, imageRecord.ID)
 	// We have >= 1 detection, draw the bboxes
-	anno := DrawDetections(frame.Image, detections)
-	f, err := os.Create(ap)
-	defer func(f *os.File) {
-		_ = f.Close()
-	}(f)
-	if err != nil {
-		logger.Error().Msgf("error writing frame to file %v @ %s", frame.Timestamp, framePath)
-		return err
-	}
-	err2 := jpeg.Encode(f, anno, nil)
-	if err2 != nil {
-		logger.Error().Msgf("error encoding frame to JPEG for %s", framePath)
-		return err2
-	}
+	err = writeAnnotatedImage(frame, ap, detections)
 	// Store the detections in the DB & broadcast to MQTT
 	logger.Debug().
 		Str("annotatedImage", ap).
 		Str("what", "wrote to disk").
 		Any("detections", detections).
 		Msg("Wrote annotated image to disk")
-	// Loop, transpose items, and write to the repo
-	topic := "detections/" + strconv.Itoa(int(device.ID))
 	var pgDetections []devices.CreateDetectionParams
 	// Set up the slice of DB params
 	for _, d := range detections {
@@ -498,24 +472,39 @@ func (s *CameraService) receiveDetectionResponse(
 	if err != nil {
 		logger.Error().Str("service", "camera.DetectionRepo.CreateDetections").
 			Err(err).Send()
-		return err
+		return []devices.Detection{}, err
 	}
+
+	var dids []int64
+	for _, det := range toPublish {
+		dids = append(dids, det.ID)
+	}
+
+	// Publish batch to MQTT
+	err = s.publishDetections(device.ID, imageRecord, toPublish)
+	return toPublish, err
+}
+
+func (s *CameraService) publishDetections(
+	deviceID int64,
+	img devices.DeviceImage,
+	detections []devices.Detection,
+) error {
 	// Marshal detections to JSON string
-	p, jErr := receiver.DetectionsToMsg(s.Config.ThisIp, imageRecord, toPublish)
+	p, jErr := receiver.DetectionsToMsg(s.Config.ThisIp, img, detections)
 	if jErr != nil {
 		logger.Error().Str("service", "camera").
 			Err(jErr).Send()
 		return jErr
 	}
 	// Publish batch to MQTT
-	logger.Debug().Str("service", "camera").
-		Str("detections", p).
-		Msg("sent to detections topic")
+
+	topic := fmt.Sprintf("detections/%d", deviceID)
 	qtErr := s.mqttClient.Publish(topic, p)
 	if qtErr != nil {
 		logger.Error().Str("service", "camera").
 			Str("thing", "mqttPublish").
-			Err(qtErr).Send()
+			Err(qtErr).Msgf("failed to write detections to topic %s", topic)
 		return qtErr
 	}
 	return nil
@@ -534,6 +523,26 @@ func (s *CameraService) removeId(deviceId string) {
 	s.connectedIds = slices.DeleteFunc(s.connectedIds, func(id string) bool {
 		return id == deviceId
 	})
+}
+
+// writeAnnotatedImage draws [detections] on the given frame [f] and writes it to the file-system at "path"
+func writeAnnotatedImage(f receiver.Frame, path string, detections []detection.Detection) error {
+	// We have >= 1 detection, draw the bboxes
+	anno := DrawDetections(f.Image, detections)
+	file, err := os.Create(path)
+	defer func(fil *os.File) {
+		_ = fil.Close()
+	}(file)
+	if err != nil {
+		logger.Error().Msgf("error writing frame to file %v @ %s", f.Timestamp, path)
+		return err
+	}
+	err2 := jpeg.Encode(file, anno, nil)
+	if err2 != nil {
+		logger.Error().Msgf("error encoding frame to JPEG for %s", path)
+		return err2
+	}
+	return nil
 }
 
 func detectionServiceToPg(

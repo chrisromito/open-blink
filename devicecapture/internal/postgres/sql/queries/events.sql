@@ -1,3 +1,6 @@
+-- name: GetEvent :one
+SELECT * FROM detection_events WHERE id = @id LIMIT 1;
+
 -- name: GetEvents :many
 SELECT *
 FROM detection_events
@@ -87,8 +90,8 @@ SELECT detection_events.*,
        detections.bbox,
        detections.image_id   AS detected_image_id
 FROM detection_events
-         JOIN device_images ON device_images.device_id = detection_events.device_id
-         JOIN detections ON detections.image_id = device_images.id
+         JOIN device_images ON device_images.event_id = detection_events.id
+         JOIN detections ON detections.event_id = detection_events.id
 WHERE detection_events.id = @id
   AND detections.created_at >= detection_events.created_at
   AND detections.created_at <= detection_events.ended_at

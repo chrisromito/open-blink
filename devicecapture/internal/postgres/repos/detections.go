@@ -19,6 +19,60 @@ func NewPgDetectionRepo(queries *db.Queries) *PgDetectionRepo {
 	}
 }
 
+// GetDetectionsAfter get all domain detections after the specified point in time
+func (d *PgDetectionRepo) GetDetectionsAfter(
+	ctx context.Context,
+	params devices.QueryParams,
+) ([]devices.Detection, error) {
+	value, err := d.queries.GetDetectionsAfter(ctx, params.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	var detections []devices.Detection
+	for _, detection := range value {
+		detections = append(detections, d.dbToDomain(detection))
+	}
+	return detections, nil
+}
+
+// GetDeviceDetectionsAfter get detections for a given domain, after the specified point in time
+func (d *PgDetectionRepo) GetDeviceDetectionsAfter(
+	ctx context.Context,
+	params devices.QueryParams,
+) ([]devices.Detection, error) {
+	dbParams, err := d.toDbQueryParams(params)
+	if err != nil {
+		return nil, err
+	}
+	value, err2 := d.queries.GetDeviceDetectionsAfter(ctx, dbParams)
+	if err2 != nil {
+		return nil, err2
+	}
+	var detections []devices.Detection
+	logger.Debug().
+		Msgf("postgres.repos.detections -> GetDeviceDetectionsAfter -> #: %d", len(detections))
+	for _, detection := range value {
+		detections = append(detections, d.dbToDomain(detection))
+	}
+	return detections, nil
+}
+
+// GetDetectionsForEvent implements [devices.DetectionRepo]
+func (d *PgDetectionRepo) GetDetectionsForEvent(
+	ctx context.Context,
+	eventID int64,
+) ([]devices.Detection, error) {
+	rows, err := d.queries.GetDetectionsForEvent(ctx, eventID)
+	if err != nil {
+		return []devices.Detection{}, err
+	}
+	var detections []devices.Detection
+	for _, row := range rows {
+		detections = append(detections, d.dbToDomain(row))
+	}
+	return detections, nil
+}
+
 // CreateDetection create a new domain detection record
 func (d *PgDetectionRepo) CreateDetection(
 	ctx context.Context,
@@ -59,42 +113,15 @@ func (d *PgDetectionRepo) CreateDetections(
 	return value, nil
 }
 
-// GetDetectionsAfter get all domain detections after the specified point in time
-func (d *PgDetectionRepo) GetDetectionsAfter(
+func (d *PgDetectionRepo) SetEvent(
 	ctx context.Context,
-	params devices.QueryParams,
-) ([]devices.Detection, error) {
-	value, err := d.queries.GetDetectionsAfter(ctx, params.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-	var detections []devices.Detection
-	for _, detection := range value {
-		detections = append(detections, d.dbToDomain(detection))
-	}
-	return detections, nil
-}
-
-// GetDeviceDetectionsAfter get detections for a given domain, after the specified point in time
-func (d *PgDetectionRepo) GetDeviceDetectionsAfter(
-	ctx context.Context,
-	params devices.QueryParams,
-) ([]devices.Detection, error) {
-	dbParams, err := d.toDbQueryParams(params)
-	if err != nil {
-		return nil, err
-	}
-	value, err2 := d.queries.GetDeviceDetectionsAfter(ctx, dbParams)
-	if err2 != nil {
-		return nil, err2
-	}
-	var detections []devices.Detection
-	logger.Debug().
-		Msgf("postgres.repos.detections -> GetDeviceDetectionsAfter -> #: %d", len(detections))
-	for _, detection := range value {
-		detections = append(detections, d.dbToDomain(detection))
-	}
-	return detections, nil
+	ids []int64,
+	eventID int64,
+) error {
+	return d.queries.SetEventForDetections(ctx, db.SetEventForDetectionsParams{
+		EventID: eventID,
+		Ids:     ids,
+	})
 }
 
 // DeleteDetections deletes detection records for a given deviceId
@@ -109,6 +136,7 @@ func (d *PgDetectionRepo) dbToDomain(value db.Detection) devices.Detection {
 		ID:         value.ID,
 		DeviceID:   value.DeviceID,
 		ImageID:    value.ImageID,
+		EventID:    value.EventID,
 		CreatedAt:  value.CreatedAt,
 		Label:      value.Label,
 		Confidence: value.Confidence,

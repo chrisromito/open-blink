@@ -32,9 +32,9 @@ func (ir *PgImageRepo) CreateImage(
 
 func (ir *PgImageRepo) GetImages(
 	ctx context.Context,
-	deviceId int64,
+	deviceID int64,
 ) ([]devices.DeviceImage, error) {
-	imgs, err := ir.queries.GetDeviceImages(ctx, deviceId)
+	imgs, err := ir.queries.GetDeviceImages(ctx, deviceID)
 	if err != nil {
 		var empty []devices.DeviceImage
 		return empty, err
@@ -46,10 +46,38 @@ func (ir *PgImageRepo) GetImages(
 	return list, nil
 }
 
+func (ir *PgImageRepo) GetImagesForEvent(
+	ctx context.Context,
+	eventID int64,
+) ([]devices.DeviceImage, error) {
+	imgs, err := ir.queries.GetImagesForEvent(ctx, eventID)
+	if err != nil {
+		var empty []devices.DeviceImage
+		return empty, err
+	}
+	var list []devices.DeviceImage
+	for _, img := range imgs {
+		list = append(list, ImageDbToDomain(img))
+	}
+	return list, nil
+}
+
+func (ir *PgImageRepo) SetEvent(
+	ctx context.Context,
+	ids []int64,
+	eventID int64,
+) error {
+	return ir.queries.SetEventForImages(ctx, db.SetEventForImagesParams{
+		EventID: eventID,
+		Ids:     ids,
+	})
+}
+
 func ImageDbToDomain(dbImg db.DeviceImage) devices.DeviceImage {
 	return devices.DeviceImage{
 		ID:            dbImg.ID,
 		DeviceID:      dbImg.DeviceID,
+		EventID:       dbImg.EventID,
 		CreatedAt:     dbImg.CreatedAt,
 		ImagePath:     dbImg.ImagePath,
 		AnnotatedPath: *dbImg.AnnotatedPath,

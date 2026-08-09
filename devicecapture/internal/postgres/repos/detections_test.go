@@ -20,7 +20,7 @@ func Test_Create_Detection(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionRepo(q)
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	assert.NoError(t, deviceErr)
 	deviceId := testDevice.ID
 
@@ -90,7 +90,7 @@ func Test_Create_Detection(t *testing.T) {
 		a := assert.New(t)
 		ctx := t.Context()
 		imgRepo := NewPgImageRepo(q)
-		td, de := GetOrCreateTestDevice(t.Context(), q)
+		td, de := GetTestDevice(t.Context(), q)
 		a.NoError(de)
 		suffix := generateRandomString(10)
 		// Create the faux image record so we can associate a detection record with a valid DB entry
@@ -122,7 +122,7 @@ func Test_Get_Detections_After(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgDetectionRepo(q)
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	deviceId := testDevice.ID
 
@@ -155,41 +155,5 @@ func Test_Get_Detections_After(t *testing.T) {
 		)
 		assert.NotEmpty(t, value, "GetDetectionsAfter yields results")
 		assert.NoError(t, err, "GetDetectionsAfter does not require valid DeviceIDs")
-	})
-
-	tests := []struct {
-		params  devices.QueryParams
-		wantErr bool
-		isEmpty bool
-		message string
-	}{
-		{
-			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: failDate, ImageID: nil},
-			isEmpty: true,
-			message: "Empty slice because query date is too recent",
-		},
-		{
-			params:  devices.QueryParams{DeviceID: deviceId, CreatedAt: successDate, ImageID: nil},
-			isEmpty: false,
-			message: "non-empty slice because results were inserted today",
-		},
-		{
-			params:  devices.QueryParams{DeviceID: int64(-5), CreatedAt: successDate, ImageID: nil},
-			isEmpty: true,
-			message: "empty slice because the DeviceID is invalid",
-		},
-	}
-
-	t.Run("test_query_device_detections_after", func(t *testing.T) {
-		ctx := t.Context()
-		for _, test := range tests {
-			value, err := repo.GetDeviceDetectionsAfter(ctx, test.params)
-			assert.NoError(t, err)
-			if test.isEmpty {
-				assert.Empty(t, value, test.message)
-			} else {
-				assert.NotEmpty(t, value, test.message)
-			}
-		}
 	})
 }

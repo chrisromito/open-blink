@@ -11,14 +11,8 @@ LIMIT 1;
 
 -- name: CreateTestDevice :one
 INSERT INTO devices (id, name, device_url)
-VALUES (DEFAULT, 'mockdevice', 'http://mock_device:8080')
+VALUES (DEFAULT, @name, 'http://mock_device:8080')
 RETURNING *;
-
--- name: GetTestDevice :one
-SELECT *
-FROM devices
-WHERE name ILIKE '%mockdevice%'
-LIMIT 1;
 
 -- name: DeleteTestDevices :exec
 DELETE
@@ -83,8 +77,8 @@ WHERE device_id = $1;
 -- Detections
 -----------------
 -- name: CreateDetection :one
-INSERT INTO detections (id, device_id, label, confidence, image_id, bbox, created_at)
-VALUES (DEFAULT, @device_id, @label, @confidence, @image_id, @bbox, (
+INSERT INTO detections (id, device_id, event_id, label, confidence, image_id, bbox, created_at)
+VALUES (DEFAULT, @device_id, @event_id, @label, @confidence, @image_id, @bbox, (
     CASE
         WHEN @set_created_at::bool
             THEN @created_at::timestamp
@@ -117,14 +111,34 @@ FROM detections
 WHERE device_id = $1;
 
 
+-- name: GetDetectionsForEvent :many
+SELECT *
+FROM detections
+WHERE event_id = @event_id::bigint;
+
+-- name: SetEventForDetections :exec
+UPDATE detections
+SET event_id = @event_id::bigint
+WHERE id = ANY (@ids::bigint[]);
+
 ------------ Images
 
 -- name: CreateImage :one
-INSERT INTO device_images (id, device_id, created_at, image_path, annotated_path)
-VALUES (DEFAULT, @device_id, DEFAULT, @image_path, @annotated_path)
+INSERT INTO device_images (id, device_id, event_id, created_at, image_path, annotated_path)
+VALUES (DEFAULT, @device_id, @event_id, DEFAULT, @image_path, @annotated_path)
 RETURNING *;
 
 -- name: GetDeviceImages :many
 SELECT *
 FROM device_images
 WHERE device_id = @device_id;
+
+-- name: GetImagesForEvent :many
+SELECT *
+FROM device_images
+WHERE event_id = @event_id::bigint;
+
+-- name: SetEventForImages :exec
+UPDATE device_images
+SET event_id = @event_id::bigint
+WHERE id = ANY (@ids::bigint[]);

@@ -81,6 +81,8 @@ type DetectionDetail struct {
 }
 
 type DetectionEventRepo interface {
+	// GetEvent returns a DetectionEvent or nil
+	GetEvent(ctx context.Context, id int64) (DetectionEvent, error)
 	// StartEvent creates a DetectionEvent with the given deviceID and labels
 	StartEvent(ctx context.Context, deviceID int64, labels []string) (DetectionEvent, error)
 	// EndEvent updates a DetectionEvent by flagging it as Ended

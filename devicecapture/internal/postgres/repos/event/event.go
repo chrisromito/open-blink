@@ -24,6 +24,18 @@ func NewPgDetectionEventRepo(q *db.Queries, conf *config.Config) *PgDetectionEve
 	}
 }
 
+// GetEvent implements [dEvent.DetectionEventRepo]
+func (de *PgDetectionEventRepo) GetEvent(
+	ctx context.Context,
+	id int64,
+) (dEvent.DetectionEvent, error) {
+	evt, err := de.queries.GetEvent(ctx, id)
+	if err != nil {
+		return dEvent.DetectionEvent{}, err
+	}
+	return de.dbToDomain(evt), nil
+}
+
 // StartEvent implements [dEvent.DetectionEventRepo]
 func (de *PgDetectionEventRepo) StartEvent(
 	ctx context.Context,

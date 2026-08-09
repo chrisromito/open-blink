@@ -14,7 +14,7 @@ func Test_Create_Heartbeats(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgHeartbeatRepo(q)
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 
 	for range 10 {

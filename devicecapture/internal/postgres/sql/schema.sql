@@ -32,9 +32,13 @@ CREATE TABLE device_images
         CONSTRAINT device_images_device__fk
             REFERENCES devices
             ON DELETE CASCADE,
-    created_at     timestamp with time zone DEFAULT NOW() NOT NULL,
+    event_id       bigint
+        CONSTRAINT device_images_event__fk
+            REFERENCES detection_events
+            ON DELETE CASCADE,
     image_path     varchar(250)                           NOT NULL,
     annotated_path varchar(250),
+    created_at     timestamp with time zone DEFAULT NOW() NOT NULL,
     UNIQUE (image_path),
     UNIQUE (annotated_path)
 );
@@ -53,6 +57,10 @@ CREATE TABLE detections
     image_id   bigint
         CONSTRAINT detections_image__fk
             REFERENCES device_images
+            ON DELETE CASCADE,
+    event_id   bigint
+        CONSTRAINT detections_event__fk
+            REFERENCES detection_events
             ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT NOW() NOT NULL,
     label      varchar(250) NOT NULL,

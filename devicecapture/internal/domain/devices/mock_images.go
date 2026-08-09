@@ -3,6 +3,7 @@ package devices
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 )
@@ -39,14 +40,38 @@ func (ir *MockImage) CreateImage(_ context.Context, params CreateImageParams) (D
 	return img, nil
 }
 
-func (ir *MockImage) GetImages(_ context.Context, deviceId int64) ([]DeviceImage, error) {
+func (ir *MockImage) GetImages(_ context.Context, deviceID int64) ([]DeviceImage, error) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 	var imgs []DeviceImage
 	for _, img := range ir.ds {
-		if img.DeviceID == deviceId {
+		if img.DeviceID == deviceID {
 			imgs = append(imgs, img)
 		}
 	}
 	return imgs, nil
+}
+
+func (ir *MockImage) GetImagesForEvent(_ context.Context, eventID int64) ([]DeviceImage, error) {
+	ir.mu.Lock()
+	defer ir.mu.Unlock()
+
+	var imgs []DeviceImage
+	for _, img := range ir.ds {
+		if img.EventID != nil && *img.EventID == eventID {
+			imgs = append(imgs, img)
+		}
+	}
+	return imgs, nil
+}
+
+func (ir *MockImage) SetEvent(_ context.Context, ids []int64, eventID int64) error {
+	ir.mu.Lock()
+	defer ir.mu.Unlock()
+	for _, img := range ir.ds {
+		if slices.Contains(ids, img.ID) {
+			img.EventID = &eventID
+		}
+	}
+	return nil
 }

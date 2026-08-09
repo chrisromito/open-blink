@@ -18,9 +18,9 @@ func Test_Create_Devices(t *testing.T) {
 
 	ctx := t.Context()
 	t.Run("create_test_device", func(t *testing.T) {
-		testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+		testDevice, deviceErr := GetTestDevice(t.Context(), q)
 		a.NoError(deviceErr)
-		a.NotNil(testDevice, "The test domain was inserted into the DB")
+		a.NotNil(testDevice, "The test device was inserted into the DB")
 	})
 
 	tests := []struct {
@@ -42,7 +42,7 @@ func Test_Create_Devices(t *testing.T) {
 				DeviceUrl: generateRandomString(500),
 			},
 			wantErr: true,
-			message: "domain URLs must be shorter than 250 characters",
+			message: "device URLs must be shorter than 250 characters",
 		},
 		{
 			params: devices.CreateDeviceParams{
@@ -50,7 +50,7 @@ func Test_Create_Devices(t *testing.T) {
 				DeviceUrl: "http://longname" + generateRandomString(10) + ":1234",
 			},
 			wantErr: true,
-			message: "domain names must be shorter than 250 characters",
+			message: "device names must be shorter than 250 characters",
 		},
 	}
 

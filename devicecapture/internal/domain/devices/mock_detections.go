@@ -2,6 +2,7 @@ package devices
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 )
@@ -51,6 +52,23 @@ func (d *MockDetection) GetDeviceDetectionsAfter(
 	return result, nil
 }
 
+func (d *MockDetection) GetDetectionsForEvent(
+	_ context.Context,
+	eventID int64,
+) ([]Detection, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	var result []Detection
+	for _, detection := range d.ds {
+		if detection.EventID != nil && *detection.EventID == eventID {
+			result = append(result, detection)
+		}
+	}
+
+	return result, nil
+}
+
 func (d *MockDetection) CreateDetection(
 	_ context.Context,
 	params CreateDetectionParams,
@@ -63,6 +81,7 @@ func (d *MockDetection) CreateDetection(
 		CreatedAt:  time.Now(),
 		Label:      params.Label,
 		Confidence: params.Confidence,
+		EventID:    params.EventID,
 	}
 
 	d.ds = append(d.ds, detection)
@@ -98,5 +117,16 @@ func (d *MockDetection) DeleteDetections(_ context.Context, deviceId int64) erro
 	}
 
 	d.ds = filteredDetections
+	return nil
+}
+
+func (d *MockDetection) SetEvent(_ context.Context, ids []int64, eventID int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, det := range d.ds {
+		if slices.Contains(ids, det.ID) {
+			det.EventID = &eventID
+		}
+	}
 	return nil
 }

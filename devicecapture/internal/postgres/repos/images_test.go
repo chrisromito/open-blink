@@ -16,7 +16,7 @@ func Test_Create_Images(t *testing.T) {
 	q := appDb.GetQueries()
 	repo := NewPgImageRepo(q)
 	//testDevice, deviceErr := repo.queries.CreateTestDevice(t.Context())
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 	pathPrefix := "/videos"
 
@@ -69,7 +69,7 @@ func Test_Get_Images(t *testing.T) {
 	defer appDb.Db.Close()
 	q := appDb.GetQueries()
 	repo := NewPgImageRepo(q)
-	testDevice, deviceErr := GetOrCreateTestDevice(t.Context(), q)
+	testDevice, deviceErr := GetTestDevice(t.Context(), q)
 	a.NoError(deviceErr)
 
 	//	Create 3 images so we can read them out

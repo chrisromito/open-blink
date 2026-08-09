@@ -12,6 +12,7 @@ type Detection struct {
 	ID         int64       `db:"id" json:"id"`
 	DeviceID   int64       `db:"device_id" json:"device_id"`
 	ImageID    *int64      `db:"image_id" json:"image_id"`
+	EventID    *int64      `db:"event_id" json:"event_id"`
 	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
 	Label      string      `db:"label" json:"label"`
 	Confidence float64     `db:"confidence" json:"confidence"`
@@ -42,7 +43,8 @@ type DeviceHeartbeat struct {
 type DeviceImage struct {
 	ID            int64     `db:"id" json:"id"`
 	DeviceID      int64     `db:"device_id" json:"device_id"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	EventID       *int64    `db:"event_id" json:"event_id"`
 	ImagePath     string    `db:"image_path" json:"image_path"`
 	AnnotatedPath *string   `db:"annotated_path" json:"annotated_path"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 }
