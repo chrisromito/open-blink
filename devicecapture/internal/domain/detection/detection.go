@@ -24,6 +24,13 @@ type BBox struct {
 	Y2 float64 `json:"y2"`
 }
 
+type BatchResponse struct {
+	DeviceId   int64
+	Detections []Detection
+	Frame      receiver.Frame
+}
+
 type ObjectDetector interface {
 	DetectObjectsForImage(ctx context.Context, req Req) ([]Detection, error)
+	BatchDetections(ctx context.Context, req Req) (BatchResponse, error)
 }

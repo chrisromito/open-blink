@@ -144,14 +144,14 @@ func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
 				Str("endpoint", "DetectionEventDetailHandler").
 				Str("id", r.PathValue("id")).
 				Msg("dbErr")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, dbErr.Error(), http.StatusInternalServerError)
 			return
 		}
 		if err = json.NewEncoder(w).Encode(eventDetails); err != nil {
-			logger.Error().Err(dbErr).
+			logger.Error().Err(err).
 				Str("endpoint", "DetectionEventDetailHandler").
 				Str("id", r.PathValue("id")).
-				Msg("dbErr")
+				Msg("jsonEncodeErr")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -207,7 +207,6 @@ func getQueryPageDeviceID(r *http.Request) (PageAndId, error) {
 	if queryDevice != "" {
 		idInt, err := strconv.ParseInt(queryDevice, 10, 64)
 		if err != nil {
-			//http.Error(w, err.Error(), http.StatusBadRequest)
 			return PageAndId{}, err
 		}
 		deviceID = idInt
@@ -219,7 +218,6 @@ func getQueryPageDeviceID(r *http.Request) (PageAndId, error) {
 		if err != nil {
 			logger.Error().Err(err).Str("endpoint", "GetDetectionTimelineHandler").
 				Str("param", "page").Send()
-			//http.Error(w, err.Error(), http.StatusBadRequest)
 			return PageAndId{}, err
 		}
 		page = pageInt

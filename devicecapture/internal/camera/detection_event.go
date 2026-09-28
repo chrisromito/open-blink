@@ -2,24 +2,24 @@ package camera
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"strconv"
 	"sync"
 
 	"devicecapture/internal/domain"
+	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/event"
+	"devicecapture/internal/domain/receiver"
 	"devicecapture/internal/logger"
-	"devicecapture/internal/pubsub"
-	"golang.org/x/sync/errgroup"
 )
 
-// FIXME: Refactor this struct + its logic to use [DeviceEventState] instead of tracking
-// state internally & making this functionality difficult to debug
-
-// DetectionTracker helps track detections for a given device
+// DetectionTracker tracks detections for individual devices.
+//
+//	When a new detection stream starts, we create a DetectionEvent with state = started.
+//	A DetectionEvent "ends" when:
+//	A. There's a change in the detected objects
+//	B. All DetectionEvents that have state = "started" are transitioned to "ended"
+//	when the application starts
 type DetectionTracker struct {
 	mu           sync.Mutex
 	deviceStates map[int64]*DeviceEventState
@@ -29,19 +29,16 @@ type DetectionTracker struct {
 	DetectionRepo devices.DetectionRepo
 	// ImageRepo lets us carry [event.DetectionEvent] -> [devices.DeviceImage]
 	ImageRepo devices.ImageRepo
-	// Handle updating external subscribers
-	mqttClient *pubsub.MqttClient
+	// Publisher broadcasts detection events
+	Publisher receiver.Publisher
 }
 
-func NewDetectionTracker(
-	deps *domain.Deps,
-	qtClient *pubsub.MqttClient,
-) *DetectionTracker {
+func NewDetectionTracker(deps *domain.Deps) *DetectionTracker {
 	return &DetectionTracker{
 		EventRepo:     deps.EventRepo,
 		DetectionRepo: deps.DetectionRepo,
 		ImageRepo:     deps.ImageRepo,
-		mqttClient:    qtClient,
+		Publisher:     deps.Publisher,
 		deviceStates:  map[int64]*DeviceEventState{},
 		mu:            sync.Mutex{},
 	}
@@ -49,6 +46,10 @@ func NewDetectionTracker(
 
 func (dt *DetectionTracker) HasEvent(deviceID int64) bool {
 	return dt.hasEvent(deviceID)
+}
+
+func (dt *DetectionTracker) CurrentEventID(deviceID int64) int64 {
+	return dt.currentEventID(deviceID)
 }
 
 func (dt *DetectionTracker) ReceiveImage(deviceID int64, img devices.DeviceImage) error {
@@ -62,18 +63,57 @@ func (dt *DetectionTracker) ReceiveImage(deviceID int64, img devices.DeviceImage
 	return nil
 }
 
-func (dt *DetectionTracker) ReceiveDetections(deviceID int64, detections []devices.Detection) bool {
+// ReceiveDetections updates detection state where possible, returns false if we could not update detection state
+func (dt *DetectionTracker) ReceiveDetections(
+	ctx context.Context,
+	deviceID int64,
+	detections []detection.Detection,
+) error {
+	logger.Debug().Str("tracker", "ReceiveDetections").
+		Int64("deviceID", deviceID).Send()
 	dt.mu.Lock()
-	defer dt.mu.Unlock()
 	state, pres := dt.deviceStates[deviceID]
 	if !pres {
-		return true
+		dt.mu.Unlock()
+
+		if err := dt.Start(ctx, deviceID, DetectionLabels(detections)); err != nil {
+			return err
+		}
+
+		dt.mu.Lock()
+		state = dt.deviceStates[deviceID]
+		if state != nil {
+			state.AddDetections(detections)
+		}
+		dt.mu.Unlock()
+
+		return nil
 	}
-	if !state.Eq(detections) {
-		return true
+
+	if state.Eq(detections) {
+		state.AddDetections(detections)
+		dt.mu.Unlock()
+		return nil
 	}
-	state.AddDetections(detections)
-	return false
+
+	dt.mu.Unlock()
+
+	if err := dt.End(ctx, deviceID); err != nil {
+		return err
+	}
+
+	if err := dt.Start(ctx, deviceID, DetectionLabels(detections)); err != nil {
+		return err
+	}
+
+	dt.mu.Lock()
+	state = dt.deviceStates[deviceID]
+	if state != nil {
+		state.AddDetections(detections)
+	}
+	dt.mu.Unlock()
+
+	return nil
 }
 
 func (dt *DetectionTracker) Start(ctx context.Context, deviceID int64, labels []string) error {
@@ -90,8 +130,7 @@ func (dt *DetectionTracker) Start(ctx context.Context, deviceID int64, labels []
 	dt.setEvent(deviceID, evt)
 	logger.Debug().Str("DetectionTracker", "Start").
 		Msgf("returning for %d", deviceID)
-	err = PublishDetectionEvent(dt.mqttClient, evt)
-	return err
+	return dt.Publisher.PublishDetectionEvent(evt)
 }
 
 // End ensures that the EventRepo marks the [event.DetectionEvent] as [event.Ended]
@@ -103,6 +142,18 @@ func (dt *DetectionTracker) End(ctx context.Context, deviceID int64) error {
 		return errors.New("failed to end DetectionEvent because it has not been started")
 	}
 	return dt.endEvent(ctx, deviceID)
+}
+
+func (dt *DetectionTracker) currentEventID(deviceID int64) int64 {
+	dt.mu.Lock()
+	defer func(d *DetectionTracker) {
+		d.mu.Unlock()
+	}(dt)
+	dState, pres := dt.deviceStates[deviceID]
+	if !pres {
+		return int64(0)
+	}
+	return dState.EventID()
 }
 
 func (dt *DetectionTracker) endEvent(ctx context.Context, deviceID int64) error {
@@ -119,20 +170,11 @@ func (dt *DetectionTracker) endEvent(ctx context.Context, deviceID int64) error 
 		return nil
 	}
 	// trigger the 'End' workflow for this deviceState before we wrap up
-	eventID, err := s.End(
-		ctx,
-		dt.EventRepo,
-		dt.DetectionRepo,
-		dt.ImageRepo,
-	)
+	evt, err := s.End(ctx, dt.EventRepo)
 	if err != nil {
 		return err
 	}
-	evt, err := dt.EventRepo.GetEvent(ctx, eventID)
-	if err != nil {
-		return err
-	}
-	return PublishDetectionEvent(dt.mqttClient, evt)
+	return dt.Publisher.PublishDetectionEvent(evt)
 }
 
 func (dt *DetectionTracker) hasEvent(deviceID int64) bool {
@@ -161,33 +203,11 @@ func (dt *DetectionTracker) setEvent(deviceID int64, evt event.DetectionEvent) {
 	}
 }
 
-// PublishDetectionEvent detection event JSON to MQTT topic "detection-event/DEVICE_ID/STATE_STRING"
-//
-//	ex. "detection-event/1/started", "detection-event/1/ended"
-func PublishDetectionEvent(qt *pubsub.MqttClient, evt event.DetectionEvent) error {
-	dID := strconv.Itoa(int(evt.DeviceID))
-	ds, err := event.DetectionStateFromValue(evt.State)
-	if err != nil {
-		return err
-	}
-	topic := fmt.Sprintf("detection-event/%s/%s", dID, ds.String())
-	payload, jerr := json.Marshal(evt)
-	if jerr != nil {
-		return jerr
-	}
-	logger.Debug().Str("detection_event", "PublishDetectionEvent").
-		Str("payload", string(payload)).
-		Str("state", ds.String()).
-		Str("topic", topic).
-		Send()
-	return qt.Publish(topic, payload)
-}
-
 type DeviceEventState struct {
 	deviceID   int64
 	eventID    *int64
 	images     []devices.DeviceImage
-	detections []devices.Detection
+	detections []detection.Detection
 	mu         sync.Mutex
 }
 
@@ -195,70 +215,37 @@ func NewDeviceEventState(deviceID int64) *DeviceEventState {
 	return &DeviceEventState{
 		deviceID:   deviceID,
 		images:     []devices.DeviceImage{},
-		detections: []devices.Detection{},
+		detections: []detection.Detection{},
 		mu:         sync.Mutex{},
 	}
+}
+
+func (ds *DeviceEventState) EventID() int64 {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	return *ds.eventID
 }
 
 func (ds *DeviceEventState) End(
 	ctx context.Context,
 	eventRepo event.DetectionEventRepo,
-	detectionRepo devices.DetectionRepo,
-	imageRepo devices.ImageRepo,
-) (int64, error) {
+) (event.DetectionEvent, error) {
+	logger.Debug().Str("DeviceEventState", "End").Send()
 	if !ds.HasEvent() {
-		return 0, nil
+		return event.DetectionEvent{}, nil
 	}
-	g, c := errgroup.WithContext(ctx)
-
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	eventID := *ds.eventID
 
-	// Write to the eventRepo
-	g.Go(func() error {
-		_, err := eventRepo.EndEvent(c, event.DetectionEvent{ID: eventID})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Send()
-			return err
-		}
-		logger.Debug().
-			Str("detection_event", "endEvent").
-			Msgf("DB updated ended_at for event %d", eventID)
-		return nil
-	})
-
-	// Write to the detectionRepo
-	g.Go(func() error {
-		var dids []int64
-		for _, det := range ds.detections {
-			dids = append(dids, det.ID)
-		}
-		return detectionRepo.SetEvent(c, dids, eventID)
-	})
-
-	// write to the imageRepo
-	g.Go(func() error {
-		// skip work if there isn't any to do
-		if len(ds.images) < 1 {
-			return nil
-		}
-		var ids []int64
-		for _, img := range ds.images {
-			ids = append(ids, img.ID)
-		}
-		logger.Debug().
-			Str("detection_event", "endEvent").
-			Msgf("DB updated detections %d for event %d", ids, eventID)
-		return imageRepo.SetEvent(c, ids, eventID)
-	})
-
-	return eventID, g.Wait()
+	de, err := eventRepo.EndEvent(ctx, event.DetectionEvent{ID: eventID})
+	if err != nil {
+		return event.DetectionEvent{}, err
+	}
+	return de, err
 }
 
-func (ds *DeviceEventState) Eq(detections []devices.Detection) bool {
+func (ds *DeviceEventState) Eq(detections []detection.Detection) bool {
 	return event.LabelsEq(ds.getLabels(), DetectionLabels(detections))
 }
 
@@ -280,13 +267,13 @@ func (ds *DeviceEventState) AddImage(img devices.DeviceImage) {
 	ds.images = append(ds.images, img)
 }
 
-func (ds *DeviceEventState) AddDetection(detection devices.Detection) {
+func (ds *DeviceEventState) AddDetection(detection detection.Detection) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	ds.detections = append(ds.detections, detection)
 }
 
-func (ds *DeviceEventState) AddDetections(detections []devices.Detection) {
+func (ds *DeviceEventState) AddDetections(detections []detection.Detection) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	for _, d := range detections {
@@ -300,7 +287,7 @@ func (ds *DeviceEventState) getLabels() []string {
 	return DetectionLabels(ds.detections)
 }
 
-func DetectionLabels(detections []devices.Detection) []string {
+func DetectionLabels(detections []detection.Detection) []string {
 	var labels []string
 	for _, d := range detections {
 		labels = append(labels, d.Label)

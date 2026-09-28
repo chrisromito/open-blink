@@ -3,7 +3,6 @@ package camera
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image/jpeg"
 	"os"
 	"slices"
@@ -17,19 +16,18 @@ import (
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/receiver"
 	"devicecapture/internal/logger"
-	"devicecapture/internal/pubsub"
 )
 
 // CameraService provides high-level methods for interacting with camera devices
 type CameraService struct {
 	Config        *config.Config
 	DeviceRepo    devices.DeviceRepository
-	FrameRepo     receiver.FrameRepository
+	FrameRepo     receiver.Publisher
 	DetectionRepo devices.DetectionRepo
 	Detector      detection.ObjectDetector
 	ImageRepo     devices.ImageRepo
-	mqttClient    *pubsub.MqttClient
 	tracker       *DetectionTracker
+	ingestor      *frameIngestor
 	connectedIds  []string
 	mu            sync.Mutex
 }
@@ -41,19 +39,18 @@ func NewCameraService(
 	conf *config.Config,
 	deps *domain.Deps,
 	detector detection.ObjectDetector,
-	qtClient *pubsub.MqttClient,
 ) *CameraService {
 	ids := make([]string, 10)
 	cs := &CameraService{
 		Config:        conf,
 		DeviceRepo:    deps.DeviceRepo,
-		FrameRepo:     deps.FrameRepo,
+		FrameRepo:     deps.Publisher,
 		DetectionRepo: deps.DetectionRepo,
 		ImageRepo:     deps.ImageRepo,
 		connectedIds:  ids,
 		Detector:      detector,
-		mqttClient:    qtClient,
-		tracker:       NewDetectionTracker(deps, qtClient),
+		ingestor:      newFrameIngestor(conf, deps),
+		tracker:       NewDetectionTracker(deps),
 		mu:            sync.Mutex{},
 	}
 	return cs
@@ -87,7 +84,7 @@ func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 	if sErr != nil {
 		return sErr
 	}
-	defer func(FrameRepo receiver.FrameRepository) {
+	defer func(FrameRepo receiver.Publisher) {
 		_ = FrameRepo.EndSession(session)
 	}(s.FrameRepo)
 
@@ -96,9 +93,7 @@ func (s *CameraService) Snapshot(ctx context.Context, d devices.Device) error {
 	if err != nil {
 		return err
 	}
-	fp := receiver.FramePath(s.Config.VideoPath, session, frame)
-	ap := receiver.AnnotatedPath(s.Config.VideoPath, session, frame)
-	return s.receiveFrame(ctx, d, fp, ap, frame)
+	return s.ingestFrame(ctx, session, d, frame)
 }
 
 // StreamSnapshots streams [receiver.Frame] from the [devices.Device] for [seconds].
@@ -116,7 +111,7 @@ func (s *CameraService) StreamSnapshots(ctx context.Context, d devices.Device, s
 	if sErr != nil {
 		return sErr
 	}
-	defer func(FrameRepo receiver.FrameRepository) {
+	defer func(FrameRepo receiver.Publisher) {
 		_ = FrameRepo.EndSession(session)
 	}(s.FrameRepo)
 
@@ -217,7 +212,7 @@ func (s *CameraService) runApiStreamer(
 	}
 }
 
-// runFrameProcessor receives frames and generates file paths before handing off to [CameraService.receiveFrame]
+// runFrameProcessor receives frames and generates file paths before handing off to [CameraService.ingestFrame]
 func (s *CameraService) runFrameProcessor(
 	wg *sync.WaitGroup,
 	ctx context.Context,
@@ -230,25 +225,21 @@ func (s *CameraService) runFrameProcessor(
 		select {
 		case <-ctx.Done():
 			return
-		case img, ok := <-imgChan:
+		case frame, ok := <-imgChan:
 			if !ok {
 				logger.Error().Str("service", "camera.StartStream").
 					Msg("CameraService -> imgChan not ok, returning")
 				return
 			}
 
-			// Fixed potential bug: processed frames only if session is NOT nil
 			if session == nil {
 				continue
 			}
 
-			session.SetLastFrame(&img)
-			fp := receiver.FramePath(s.Config.VideoPath, session, img)
-			ap := receiver.AnnotatedPath(s.Config.VideoPath, session, img)
-
-			if err := s.receiveFrame(ctx, device, fp, ap, img); err != nil {
+			err := s.ingestFrame(ctx, session, device, frame)
+			if err != nil {
 				logger.Error().Str("service", "camera.StartStream").
-					Msgf("receiveFrame threw %v", err)
+					Msgf("ingestFrame threw %v", err)
 				return
 			}
 		}
@@ -296,219 +287,145 @@ func (s *CameraService) detectionsForFrame(
 	return detections, nil
 }
 
-// receiveFrame processes a single frame by saving it as an image record and optionally
-// performing object detection. If detection is enabled and objects are found, it stores
-// the detections in the database and publishes them to MQTT. The frame is also passed
-// to the FrameRepository for storage. All operations run concurrently using goroutines.
-func (s *CameraService) receiveFrame(
+// ingestFrame handles the Detector calls and passes the BatchResponse to the ingestor
+func (s *CameraService) ingestFrame(
 	ctx context.Context,
+	cs *receiver.CaptureSession,
 	device devices.Device,
-	framePath string,
-	ap string,
 	frame receiver.Frame,
 ) error {
-	var wg sync.WaitGroup
-	if cErr := ctx.Err(); cErr != nil {
-		return nil
+	br, bErr := s.batchResponseFromFrame(ctx, device.ID, frame)
+	if bErr != nil {
+		return bErr
 	}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		detections, dErr := s.detectionsForFrame(ctx, device.ID, frame)
-		if dErr != nil {
-			logger.Error().
-				Str("service", "camera.detectionsForFrame").
-				Err(dErr).Send()
-			return
-		}
-		logger.Debug().Any("detections", detections).
-			Msgf("\n\nCameraService: received detections: %v", detections)
-		if len(detections) < 1 {
-			// Exclude the AnnotatedPath if there aren't any detections
-			_, err := s.ImageRepo.CreateImage(
-				ctx,
-				devices.CreateImageParams{
-					DeviceID:      device.ID,
-					ImagePath:     framePath,
-					AnnotatedPath: "",
-				},
-			)
-			if err != nil {
-				logger.Error().Str("service", "camera.receiveFrame").
-					Str("threwFrom", "camera.ImageRepo.CreateImage").
-					Str("failed to save image to", framePath).
-					Err(err).Send()
-				return
-			}
-			return
-		}
-		records, err := s.receiveDetectionResponse(ctx, device, frame, detections, framePath, ap)
-		if err != nil {
-			logger.Error().Str("service", "camera.receiveFrame").
-				Str("threwFrom", "receiveDetectionResponse").
-				Err(err).
-				Send()
-			return
-		}
-		err = s.trackDetections(ctx, device, records)
-		if err != nil {
-			logger.Error().Str("service", "camera.receiveFrame").
-				Str("threwFrom", "trackDetections").
-				Err(err).
-				Send()
-			return
-		}
-		return
-	}()
-
-	// goroutine to write frames to disk and update MQTT
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// Write the Frame to disk
-		fsErr := s.FrameRepo.WriteFrame(frame, framePath)
-		if fsErr != nil {
-			logger.Error().Err(fsErr).Str("FramePath:", framePath).
-				Msg("Failed to write frame to FS")
-			return
-		}
-		// Update MQTT via FrameRepo
-		repoErr := s.FrameRepo.PublishFrame(frame, ap, device.StringId())
-		if repoErr != nil {
-			logger.Error().
-				Str("CameraService", "startStream.FrameRepo.PublishFrame").
-				Err(repoErr).Send()
-			return
-		}
-		return
-	}()
-
-	logger.Debug().Str("CameraService", "receiveFrame").
-		Msg("Waiting for wg")
-	wg.Wait()
-	logger.Debug().Str("CameraService", "receiveFrame").
-		Msg("Returning")
-	return nil
+	err := s.receiveBatchResponse(ctx, cs, device, br)
+	return err
 }
 
-// trackDetections passes detections to the detectionTracker so it can write [event.DetectionEvent] as needed
-func (s *CameraService) trackDetections(
+// batchResponseFromFrame helper func for API for receiver.Frame -> detection.BatchResponse
+func (s *CameraService) batchResponseFromFrame(
 	ctx context.Context,
-	device devices.Device,
-	detections []devices.Detection,
-) error {
-	// now we can push the labels into DetectionTracker and determine
-	// if this is the end of a DetectionEvent
-	same := s.tracker.ReceiveDetections(device.ID, detections)
+	deviceId int64,
+	frame receiver.Frame,
+) (detection.BatchResponse, error) {
+	req := detection.Req{
+		DeviceId: deviceId,
+		Frame:    frame,
+	}
+	b, err := s.Detector.BatchDetections(ctx, req)
+	return b, err
+}
 
-	// If labels changed we need to end the DetectionEvent and start a new one
-	if !same {
-		logger.Debug().Str("CameraService", "receiveFrame").
-			Str("goroutine", "tracker.End").
-			Msg("labels changed, Ending DetectionEvent")
-		err := s.tracker.End(ctx, device.ID)
+// receiveBatchResponse helper method for ingestor and updating the tracker
+//
+//	Guarantees an eventID for repo associativity
+func (s *CameraService) receiveBatchResponse(
+	ctx context.Context,
+	cs *receiver.CaptureSession,
+	device devices.Device,
+	br detection.BatchResponse,
+) error {
+	evtID := s.tracker.CurrentEventID(device.ID)
+	logger.Debug().Str("CameraService", "receiveBatchResponse").
+		Int64("eventID", evtID).Send()
+	if evtID == 0 {
+		logger.Debug().Str("CameraService", "receiveBatchResponse").
+			Msg("evtID was empty, starting a new event")
+		var labels []string
+		for _, d := range br.Detections {
+			labels = append(labels, d.Label)
+		}
+
+		// Empty means we don't have an event, so we need to start one
+		err := s.tracker.Start(ctx, device.ID, labels)
 		if err != nil {
-			logger.Error().Str("CameraService", "receiveFrame").
-				Str("goroutine", "tracker.End").
-				Err(err).
-				Send()
 			return err
 		}
-		logger.Debug().Str("CameraService", "receiveFrame").
-			Str("goroutine", "tracker.End").
-			Msg("labels changed Starting Next DetectionEvent")
-		err = s.tracker.Start(ctx, device.ID, DetectionLabels(detections))
-		if err != nil {
-			logger.Error().Str("CameraService", "receiveFrame").
-				Str("goroutine", "tracker.Start (after ending)").
-				Err(err).
-				Send()
-		}
+		evtID = s.tracker.CurrentEventID(device.ID)
+		logger.Debug().Str("CameraService", "receiveBatchResponse").
+			Strs("labels", labels).
+			Int64("EventID", evtID).
+			Msg("Event Labels")
+	}
+	detections, err := s.ingestor.ReceiveBatch(ctx, cs, br, &evtID)
+	if err != nil {
 		return err
 	}
-	return nil
+	sds := detection.DeviceDetectionsToService(detections)
+	return s.tracker.ReceiveDetections(ctx, device.ID, sds)
 }
 
-// receiveDetectionResponse takes a [receiver.Frame], and the object detection results [detection.Detection]
-// for that frame, and disseminates them to the DB (via DetectionRepo), MQTT (via FrameRepo),
-// and annotates the original images with the detection results ([devices.DeviceImage.AnnotatedPath])
-// where the annotated image is then stored to the file system
-func (s *CameraService) receiveDetectionResponse(
-	ctx context.Context,
-	device devices.Device,
-	frame receiver.Frame,
-	detections []detection.Detection,
-	framePath string,
-	ap string,
-) ([]devices.Detection, error) {
-	imageRecord, err := s.ImageRepo.CreateImage(
-		ctx,
-		devices.CreateImageParams{DeviceID: device.ID, ImagePath: framePath, AnnotatedPath: ap},
-	)
-	if err != nil {
-		logger.Error().Str("service", "camera.receiveFrame").
-			Str("threwFrom", "camera.ImageRepo.CreateImage").
-			Str("failed to save image to", framePath).
-			Err(err).Send()
-		return []devices.Detection{}, err
-	}
-	//s.tracker.AddImage(device.ID, imageRecord.ID)
-	// We have >= 1 detection, draw the bboxes
-	err = writeAnnotatedImage(frame, ap, detections)
-	// Store the detections in the DB & broadcast to MQTT
-	logger.Debug().
-		Str("annotatedImage", ap).
-		Str("what", "wrote to disk").
-		Any("detections", detections).
-		Msg("Wrote annotated image to disk")
-	var pgDetections []devices.CreateDetectionParams
-	// Set up the slice of DB params
-	for _, d := range detections {
-		pgDetections = append(pgDetections, detectionServiceToPg(device.ID, &imageRecord.ID, d))
-	}
-	// Write to the DB
-	toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
-	if err != nil {
-		logger.Error().Str("service", "camera.DetectionRepo.CreateDetections").
-			Err(err).Send()
-		return []devices.Detection{}, err
-	}
-
-	var dids []int64
-	for _, det := range toPublish {
-		dids = append(dids, det.ID)
-	}
-
-	// Publish batch to MQTT
-	err = s.publishDetections(device.ID, imageRecord, toPublish)
-	return toPublish, err
-}
-
-func (s *CameraService) publishDetections(
-	deviceID int64,
-	img devices.DeviceImage,
-	detections []devices.Detection,
-) error {
-	// Marshal detections to JSON string
-	p, jErr := receiver.DetectionsToMsg(s.Config.ThisIp, img, detections)
-	if jErr != nil {
-		logger.Error().Str("service", "camera").
-			Err(jErr).Send()
-		return jErr
-	}
-	// Publish batch to MQTT
-
-	topic := fmt.Sprintf("detections/%d", deviceID)
-	qtErr := s.mqttClient.Publish(topic, p)
-	if qtErr != nil {
-		logger.Error().Str("service", "camera").
-			Str("thing", "mqttPublish").
-			Err(qtErr).Msgf("failed to write detections to topic %s", topic)
-		return qtErr
-	}
-	return nil
-}
+//// receiveDetectionResponse takes a [receiver.Frame], and the object detection results [detection.Detection]
+//// for that frame, and disseminates them to the DB (via DetectionRepo), MQTT (via FrameRepo),
+//// and annotates the original images with the detection results ([devices.DeviceImage.AnnotatedPath])
+//// where the annotated image is then stored to the file system
+//func (s *CameraService) receiveDetectionResponse(
+//	ctx context.Context,
+//	device devices.Device,
+//	frame receiver.Frame,
+//	detections []detection.Detection,
+//	framePath string,
+//	ap string,
+//) ([]devices.Detection, error) {
+//	eventID := s.tracker.CurrentEventID(device.ID)
+//	imageRecord, err := s.ImageRepo.CreateImage(
+//		ctx,
+//		devices.CreateImageParams{
+//			DeviceID:      device.ID,
+//			ImagePath:     framePath,
+//			AnnotatedPath: ap,
+//			EventID:       &eventID,
+//		},
+//	)
+//	if err != nil {
+//		logger.Error().Str("service", "camera.trackDetections").
+//			Str("threwFrom", "camera.ImageRepo.CreateImage").
+//			Str("failed to save image to", framePath).
+//			Err(err).Send()
+//		return []devices.Detection{}, err
+//	}
+//	//s.tracker.AddImage(device.ID, imageRecord.ID)
+//	// We have >= 1 detection, draw the bboxes
+//	err = writeAnnotatedImage(frame, ap, detections)
+//	if err != nil {
+//		logger.Error().Str("service", "camera.trackDetections").
+//			Str("threwFrom", "camera.ImageRepo.CreateImage").
+//			Str("failed to save image to", ap).
+//			Err(err).Send()
+//		return []devices.Detection{}, err
+//	}
+//	// Store the detections in the DB & broadcast to MQTT
+//	logger.Debug().
+//		Str("annotatedImage", ap).
+//		Str("what", "wrote to disk").
+//		Any("detections", detections).
+//		Msg("Wrote annotated image to disk")
+//	var pgDetections []devices.CreateDetectionParams
+//	// Set up the slice of DB params
+//	partial := devices.CreateDetectionParams{
+//		ImageID: &imageRecord.ID,
+//		EventID: &eventID,
+//	}
+//	for _, d := range detections {
+//		pgDetections = append(pgDetections, detectionServiceToPg(partial, d))
+//	}
+//	// Write to the DB
+//	toPublish, err := s.DetectionRepo.CreateDetections(ctx, pgDetections)
+//	if err != nil {
+//		logger.Error().Str("service", "camera.DetectionRepo.CreateDetections").
+//			Err(err).Send()
+//		return []devices.Detection{}, err
+//	}
+//
+//	var dids []int64
+//	for _, det := range toPublish {
+//		dids = append(dids, det.ID)
+//	}
+//
+//	// Publish batch to MQTT
+//	err = s.FrameRepo.PublishDetections(device.ID, imageRecord, toPublish)
+//	return toPublish, err
+//}
 
 func (s *CameraService) addId(deviceId string) {
 	s.mu.Lock()
@@ -546,8 +463,7 @@ func writeAnnotatedImage(f receiver.Frame, path string, detections []detection.D
 }
 
 func detectionServiceToPg(
-	deviceId int64,
-	imageID *int64,
+	partial devices.CreateDetectionParams,
 	d detection.Detection,
 ) devices.CreateDetectionParams {
 	Bbox := [][]float64{
@@ -555,10 +471,11 @@ func detectionServiceToPg(
 		{d.Bbox.X2, d.Bbox.Y2},
 	}
 	return devices.CreateDetectionParams{
-		DeviceID:   deviceId,
 		Label:      d.Label,
 		Confidence: d.Confidence,
-		ImageID:    imageID,
 		Bbox:       Bbox,
+		DeviceID:   partial.DeviceID,
+		ImageID:    partial.ImageID,
+		EventID:    partial.EventID,
 	}
 }

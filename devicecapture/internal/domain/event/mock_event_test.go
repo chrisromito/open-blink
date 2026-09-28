@@ -21,7 +21,11 @@ func TestMockEventRepo_StartEvent_ReturnsStartedEvent(t *testing.T) {
 	r.NoError(err, "StartEvent should not return an error")
 	a.NotZero(evt.ID, "StartEvent should assign a non-zero event ID")
 	a.Equal(int64(10), evt.DeviceID, "StartEvent should preserve the device ID")
-	a.Equal([]string{"car", "person"}, evt.Labels, "StartEvent should sort labels before storing them")
+	a.Equal(
+		[]string{"car", "person"},
+		evt.Labels,
+		"StartEvent should sort labels before storing them",
+	)
 	a.Equal(int(Started), evt.State, "StartEvent should create the event in Started state")
 	a.False(evt.CreatedAt.IsZero(), "StartEvent should set CreatedAt")
 	a.True(evt.EndedAt.IsZero(), "StartEvent should not set EndedAt for a started event")

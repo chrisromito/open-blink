@@ -1,15 +1,13 @@
 package camera
 
 import (
-	"testing"
-
 	"devicecapture/internal/domain"
+	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/event"
-	"devicecapture/internal/logger"
-	"devicecapture/internal/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func Test_DetectionTracker_Start(t *testing.T) {
@@ -91,20 +89,20 @@ func Test_DetectionTracker_ReceiveImage_AddsImageWhenDeviceHasEvent(t *testing.T
 	a.True(tracker.HasEvent(deviceID))
 }
 
-func Test_DetectionTracker_ReceiveDetections_ReturnsChangedWhenDeviceHasNoEvent(t *testing.T) {
+func Test_DetectionTracker_ReceiveDetections_StartsEventWhenDeviceHasNoEvent(t *testing.T) {
 	a := assert.New(t)
 	tracker := getTestTracker()
 	deviceID := int64(30)
 
-	changed := tracker.ReceiveDetections(deviceID, []devices.Detection{
-		{ID: 200, Label: "car"},
+	err := tracker.ReceiveDetections(t.Context(), deviceID, []detection.Detection{
+		{Label: "car"},
 	})
 
-	a.True(changed)
-	a.False(tracker.HasEvent(deviceID))
+	a.NoError(err)
+	a.True(tracker.HasEvent(deviceID))
 }
 
-func Test_DetectionTracker_ReceiveDetections_ReturnsFalseAndAppendsWhenLabelsMatch(t *testing.T) {
+func Test_DetectionTracker_ReceiveDetections_AppendsWhenLabelsMatch(t *testing.T) {
 	a := assert.New(t)
 	tracker := getTestTracker()
 	deviceID := int64(31)
@@ -112,43 +110,38 @@ func Test_DetectionTracker_ReceiveDetections_ReturnsFalseAndAppendsWhenLabelsMat
 	a.NoError(tracker.Start(t.Context(), deviceID, []string{"car"}))
 
 	state := requireDeviceState(t, tracker, deviceID)
-	state.AddDetection(devices.Detection{ID: 201, Label: "car"})
+	state.AddDetection(detection.Detection{Label: "car"})
 
-	changed := tracker.ReceiveDetections(deviceID, []devices.Detection{
-		{ID: 202, Label: "car"},
+	err := tracker.ReceiveDetections(t.Context(), deviceID, []detection.Detection{
+		{Label: "car"},
 	})
 
-	a.False(changed)
-	a.True(state.Eq([]devices.Detection{
-		{ID: 203, Label: "car"},
-		{ID: 204, Label: "car"},
+	a.NoError(err)
+	a.True(state.Eq([]detection.Detection{
+		{Label: "car"},
+		{Label: "car"},
 	}))
 }
 
-func Test_DetectionTracker_ReceiveDetections_ReturnsTrueAndDoesNotAppendWhenLabelsDiffer(
-	t *testing.T,
-) {
+func Test_DetectionTracker_ReceiveDetections_RestartsEventWhenLabelsDiffer(t *testing.T) {
 	a := assert.New(t)
 	tracker := getTestTracker()
 	deviceID := int64(32)
 
 	a.NoError(tracker.Start(t.Context(), deviceID, []string{"car"}))
 
-	state := requireDeviceState(t, tracker, deviceID)
-	state.AddDetection(devices.Detection{ID: 203, Label: "car"})
+	oldEventID := tracker.CurrentEventID(deviceID)
 
-	changed := tracker.ReceiveDetections(deviceID, []devices.Detection{
-		{ID: 204, Label: "person"},
+	state := requireDeviceState(t, tracker, deviceID)
+	state.AddDetection(detection.Detection{Label: "car"})
+
+	err := tracker.ReceiveDetections(t.Context(), deviceID, []detection.Detection{
+		{Label: "person"},
 	})
 
-	a.True(changed)
-	a.True(state.Eq([]devices.Detection{
-		{ID: 205, Label: "car"},
-	}))
-	a.False(state.Eq([]devices.Detection{
-		{ID: 206, Label: "car"},
-		{ID: 207, Label: "person"},
-	}))
+	a.NoError(err)
+	a.True(tracker.HasEvent(deviceID))
+	a.NotEqual(oldEventID, tracker.CurrentEventID(deviceID))
 }
 
 func Test_DetectionTracker_SetEvent_CreatesStateWhenMissing(t *testing.T) {
@@ -161,6 +154,7 @@ func Test_DetectionTracker_SetEvent_CreatesStateWhenMissing(t *testing.T) {
 	state := requireDeviceState(t, tracker, deviceID)
 
 	a.True(state.HasEvent())
+	a.Equal(int64(300), state.EventID())
 }
 
 func Test_DetectionTracker_SetEvent_DoesNotOverwriteExistingEvent(t *testing.T) {
@@ -173,15 +167,8 @@ func Test_DetectionTracker_SetEvent_DoesNotOverwriteExistingEvent(t *testing.T) 
 
 	state := requireDeviceState(t, tracker, deviceID)
 
-	eventID, err := state.End(
-		t.Context(),
-		tracker.EventRepo,
-		tracker.DetectionRepo,
-		tracker.ImageRepo,
-	)
-
-	a.NoError(err)
-	a.Equal(int64(301), eventID)
+	a.True(state.HasEvent())
+	a.Equal(int64(301), state.EventID())
 }
 
 func Test_DeviceEventState_NewDeviceEventState(t *testing.T) {
@@ -196,20 +183,28 @@ func Test_DeviceEventState_NewDeviceEventState(t *testing.T) {
 
 func Test_DeviceEventState_SetEvent(t *testing.T) {
 	a := assert.New(t)
-	deps := domain.NewMockDeps()
 	state := NewDeviceEventState(51)
 
 	state.SetEvent(400)
 
-	eventID, err := state.End(
-		t.Context(),
-		deps.EventRepo,
-		deps.DetectionRepo,
-		deps.ImageRepo,
-	)
+	a.True(state.HasEvent())
+	a.Equal(int64(400), state.EventID())
+}
+
+func Test_DeviceEventState_End(t *testing.T) {
+	a := assert.New(t)
+	deps := domain.NewMockDeps()
+	state := NewDeviceEventState(51)
+
+	evt, err := deps.EventRepo.StartEvent(t.Context(), 51, []string{"car"})
+	require.NoError(t, err)
+
+	state.SetEvent(evt.ID)
+
+	ended, err := state.End(t.Context(), deps.EventRepo)
 
 	a.NoError(err)
-	a.Equal(int64(400), eventID)
+	a.Equal(evt.ID, ended.ID)
 }
 
 func Test_DeviceEventState_AddImage(t *testing.T) {
@@ -224,54 +219,53 @@ func Test_DeviceEventState_AddImage(t *testing.T) {
 	state.AddImage(devices.DeviceImage{ID: 500})
 	state.AddImage(devices.DeviceImage{ID: 501})
 
-	eventID, err := state.End(
-		t.Context(),
-		deps.EventRepo,
-		deps.DetectionRepo,
-		deps.ImageRepo,
-	)
+	ended, err := state.End(t.Context(), deps.EventRepo)
 
 	a.NoError(err)
-	a.Equal(evt.ID, eventID)
+	a.Equal(evt.ID, ended.ID)
 }
 
 func Test_DeviceEventState_AddDetection(t *testing.T) {
 	a := assert.New(t)
 	state := NewDeviceEventState(53)
 
-	state.AddDetection(devices.Detection{ID: 600, Label: "car"})
+	state.AddDetection(detection.Detection{Label: "car"})
 
-	a.True(state.Eq([]devices.Detection{{ID: 601, Label: "car"}}))
-	a.False(state.Eq([]devices.Detection{{ID: 602, Label: "person"}}))
+	a.True(state.Eq([]detection.Detection{{Label: "car"}}))
+	a.False(state.Eq([]detection.Detection{{Label: "person"}}))
 }
 
 func Test_DeviceEventState_AddDetections(t *testing.T) {
 	a := assert.New(t)
 	state := NewDeviceEventState(54)
 
-	state.AddDetections([]devices.Detection{
-		{ID: 700, Label: "car"},
-		{ID: 701, Label: "person"},
+	state.AddDetections([]detection.Detection{
+		{Label: "car"},
+		{Label: "person"},
 	})
 
-	a.True(state.Eq([]devices.Detection{
-		{ID: 702, Label: "car"},
-		{ID: 703, Label: "person"},
+	a.True(state.Eq([]detection.Detection{
+		{Label: "car"},
+		{Label: "person"},
 	}))
-	a.False(state.Eq([]devices.Detection{
-		{ID: 704, Label: "car"},
+	a.False(state.Eq([]detection.Detection{
+		{Label: "car"},
 	}))
 }
 
-func getTestTracker() *DetectionTracker {
-	client, err := pubsub.NewMockMqtt()
-	if err != nil {
-		logger.Error().Err(err).
-			Str("expect", "subsequent tests to fail").
-			Msg("getTestTracker threw an error")
-	}
+func Test_DetectionLabels(t *testing.T) {
+	a := assert.New(t)
 
-	return NewDetectionTracker(domain.NewMockDeps(), &client)
+	labels := DetectionLabels([]detection.Detection{
+		{Label: "car"},
+		{Label: "person"},
+	})
+
+	a.Equal([]string{"car", "person"}, labels)
+}
+
+func getTestTracker() *DetectionTracker {
+	return NewDetectionTracker(domain.NewMockDeps())
 }
 
 func requireDeviceState(t *testing.T, tracker *DetectionTracker, deviceID int64) *DeviceEventState {
@@ -282,22 +276,4 @@ func requireDeviceState(t *testing.T, tracker *DetectionTracker, deviceID int64)
 	require.NotNil(t, state)
 
 	return state
-}
-
-func deviceStateEventID(t *testing.T, state *DeviceEventState) int64 {
-	t.Helper()
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	require.NotNil(t, state.eventID)
-
-	return *state.eventID
-}
-
-func deviceStateCounts(state *DeviceEventState) (imagesLen int, detectionsLen int) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	return len(state.images), len(state.detections)
 }

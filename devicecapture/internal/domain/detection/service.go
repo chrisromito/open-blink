@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"devicecapture/internal/config"
+	"devicecapture/internal/domain/devices"
 )
 
 // ObjectDetectionService implements ObjectDetector
@@ -41,6 +42,30 @@ func (o ObjectDetectionService) DetectObjectsForImage(
 		return resp, nil
 	case <-time.After(2 * time.Second):
 		return []Detection{}, nil
+	}
+}
+
+// BatchDetections ObjectDetectionService implements ObjectDetector
+func (o ObjectDetectionService) BatchDetections(_ context.Context, req Req) (BatchResponse, error) {
+	value := make(chan []Detection)
+	go func() {
+		response, err := o.sendImage(req.Frame.Buf)
+		if err != nil {
+			value <- []Detection{}
+		} else {
+			value <- response
+		}
+	}()
+	select {
+	case resp := <-value:
+		br := BatchResponse{
+			DeviceId:   req.DeviceId,
+			Detections: resp,
+			Frame:      req.Frame,
+		}
+		return br, nil
+	case <-time.After(2 * time.Second):
+		return BatchResponse{}, nil
 	}
 }
 
@@ -89,4 +114,27 @@ func (o ObjectDetectionService) sendImage(imageBytes []byte) ([]Detection, error
 	}
 
 	return detections, nil
+}
+
+// DeviceDetectionToService domain interop for device devices.Detection -> Detection
+func DeviceDetectionToService(d devices.Detection) Detection {
+	bbox := BBox{
+		X1: d.Bbox[0][0],
+		Y1: d.Bbox[0][1],
+		X2: d.Bbox[1][0],
+		Y2: d.Bbox[1][1],
+	}
+	return Detection{
+		Confidence: d.Confidence,
+		Label:      d.Label,
+		Bbox:       bbox,
+	}
+}
+
+func DeviceDetectionsToService(ds []devices.Detection) []Detection {
+	var dList []Detection
+	for _, d := range ds {
+		dList = append(dList, DeviceDetectionToService(d))
+	}
+	return dList
 }

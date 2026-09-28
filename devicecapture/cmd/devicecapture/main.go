@@ -127,12 +127,11 @@ func run(ctx context.Context, a *app.App) error {
 		return qtErr
 	}
 	archiveTicker := time.NewTicker(4 * time.Hour)
-	snapshotTicker := time.NewTicker(30 * time.Second)
+	snapshotTicker := time.NewTicker(15 * time.Second)
 	cs := camera.NewCameraService(
 		a.Conf,
 		a.AppDeps,
 		detection.NewObjectDetectionService(a.Conf),
-		a.MqttClient,
 	)
 
 	for {
