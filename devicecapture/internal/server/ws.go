@@ -8,10 +8,8 @@ import (
 
 	"devicecapture/internal/app"
 	"devicecapture/internal/logger"
-	"devicecapture/internal/pubsub"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 )
 
@@ -39,14 +37,15 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		// Subscribe to the "detection/*" topic and proxy
 		// incoming messages to the WS client
 		// MQTT
-		qtClient := a.MqttClient.CopyWithClientId("detection-proxy" + uuid.New().String())
-		qtErr := qtClient.Connect()
+		qtClient, qtErr := a.MqttClient.Copy("detection-proxy" + uuid.New().String())
 		if qtErr != nil {
+			logger.Error().
+				Str("DetectionStreamHandler", "failed to copy MqttClient").
+				Err(qtErr).
+				Send()
 			return
 		}
-		defer func(qtClient *pubsub.MqttClient) {
-			_ = qtClient.Close()
-		}(&qtClient)
+		defer qtClient.Disconnect(250)
 
 		var wg sync.WaitGroup
 
@@ -54,16 +53,24 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 
 		go func() {
 			defer wg.Done()
-			err = qtClient.Subscribe("detections/#", func(client mqtt.Client, msg mqtt.Message) {
-				logger.Error().Msgf("detection msg received, passing to websocket client")
-				wsErr := wsjson.Write(ctx, c, string(msg.Payload()))
+			err = qtClient.Subscribe("detections/#", func(topic string, payload []byte) error {
+				logger.Info().
+					Msg("detection msg received, passing to websocket client")
+				wsErr := wsjson.Write(ctx, c, string(payload))
 				if wsErr != nil {
-					logger.Error().Msgf("error writing to WS client: %v", wsErr)
-					return
+					logger.Error().
+						Str("DetectionStreamHandler", "websocket send failed").
+						Err(wsErr).
+						Send()
+					return wsErr
 				}
+				return nil
 			})
 			if err != nil {
-				logger.Error().Msgf("mqttClient subscribe error: %v", err)
+				logger.Error().
+					Str("DetectionStreamHandler", "MqttClient.subscribe failed").
+					Err(err).
+					Send()
 				return
 			}
 			<-ctx.Done()
@@ -71,7 +78,10 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 		wg.Wait()
 		closeErr := c.Close(websocket.StatusNormalClosure, "")
 		if closeErr != nil {
-			logger.Error().Msgf("ws close error: %v", closeErr)
+			logger.Error().
+				Str("DetectionStreamHandler", "websocket.Close() failed").
+				Err(closeErr).
+				Send()
 		}
 	}
 }

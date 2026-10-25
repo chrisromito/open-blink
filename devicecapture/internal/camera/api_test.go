@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain/queue"
 	"devicecapture/internal/logger"
 	"github.com/mattn/go-mjpeg"
 	"golang.org/x/image/font"
@@ -48,7 +48,7 @@ func Test_Api_StreamFrames_Success(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
-	imgChan := make(chan receiver.Frame, 10)
+	imgChan := make(chan queue.Frame, 10)
 
 	go func() {
 		err := api.StreamFrames(ctx, imgChan)
@@ -73,7 +73,7 @@ func Test_Api_StreamFrames_Success(t *testing.T) {
 
 func Test_Api_StreamFrames_NetworkError(t *testing.T) {
 	api := NewApi("test-domain", "http://invalid-url-that-does-not-exist:5000")
-	imgChan := make(chan receiver.Frame, 1)
+	imgChan := make(chan queue.Frame, 1)
 	done := make(chan error, 1)
 
 	go func() {

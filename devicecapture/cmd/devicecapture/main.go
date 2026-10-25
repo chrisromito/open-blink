@@ -14,33 +14,24 @@ import (
 	"devicecapture/internal/domain"
 	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/devices"
+	"devicecapture/internal/domain/queue"
 	"devicecapture/internal/logger"
 	"devicecapture/internal/postgres"
 	"devicecapture/internal/postgres/repos"
 	"devicecapture/internal/postgres/repos/event"
 	"devicecapture/internal/pubsub"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper(
-		"go-server-"+uuid.New().String(),
-		conf.MqttHost,
-		conf.MqttUser,
-		conf.MqttPassword,
-	)
+	qtOpts := pubsub.NewMqttClientOptions(conf, "go-server-"+uuid.New().String())
+	client, cerr := pubsub.NewConnectedMqttClient(qtOpts)
 	if cerr != nil {
 		logger.Fatal().Err(cerr).Msgf("Error creating MQTT client: %v", cerr)
 	}
-	if !client.Valid() {
-		logger.Fatal().Msgf("Failed to connect to a client")
-	}
-	defer func(client *pubsub.MqttClient) {
-		_ = client.Close()
-	}(&client)
+	defer client.Disconnect(250)
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
 	if dberr != nil {
@@ -55,7 +46,7 @@ func main() {
 		repos.NewPgHeartbeatRepo(queries),
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
-		pubsub.NewMqttReceiver(&client, conf),
+		pubsub.NewMqttPublisher(client, conf),
 		repos.NewPgDetectionHistoryRepo(queries, conf),
 		event.NewPgDetectionEventRepo(queries, conf),
 	)
@@ -64,7 +55,15 @@ func main() {
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	a := app.NewApp(conf, &client, db, deps)
+	a := app.NewApp(conf, client, db, deps)
+	err := preRunHook(appCtx, a)
+	if err != nil {
+		logger.Error().
+			Str("devicecapture", "preRun").
+			Err(err).
+			Send()
+		panic(err)
+	}
 	sigChan := make(chan os.Signal, 1)
 	defer close(sigChan)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -86,17 +85,6 @@ func main() {
 		panic("capture loop exited")
 	}()
 
-	// Pre-run
-	go func() {
-		err := preRunHook(appCtx, a)
-		if err != nil {
-			logger.Error().
-				Str("devicecapture", "preRun").
-				Err(err).
-				Send()
-		}
-	}()
-
 	select {
 	case <-appCtx.Done():
 		logger.Error().Msgf("devicecapture exiting because appCtx.Done()")
@@ -114,69 +102,55 @@ func preRunHook(ctx context.Context, a *app.App) error {
 	return queries.EndStaleDetectionEvents(ctx)
 }
 
+func runReceiver(ctx context.Context, a *app.App, publisher queue.Publisher) error {
+	deps := a.AppDeps
+	receiver := pubsub.NewMqttReceiver(deps, a.Conf, a.MqttClient, publisher)
+	return receiver.Run(ctx)
+}
+
 func run(ctx context.Context, a *app.App) error {
-	msgChan := make(chan mqtt.Message, 1)
-	defer close(msgChan)
-
-	motionHandler := func(client mqtt.Client, message mqtt.Message) {
-		msgChan <- message
-	}
-
-	qtErr := a.MqttClient.Subscribe("motion-detected/#", motionHandler)
-	if qtErr != nil {
-		return qtErr
-	}
 	archiveTicker := time.NewTicker(4 * time.Hour)
+	defer archiveTicker.Stop()
+
 	snapshotTicker := time.NewTicker(15 * time.Second)
+	defer snapshotTicker.Stop()
+
 	cs := camera.NewCameraService(
 		a.Conf,
 		a.AppDeps,
 		detection.NewObjectDetectionService(a.Conf),
 	)
 
+	publisher := pubsub.NewMqttPublisher(a.MqttClient, a.Conf)
+	errChan := make(chan error)
+	defer close(errChan)
+
+	go func() {
+		errChan <- runReceiver(ctx, a, publisher)
+	}()
+
 	for {
 		select {
+		case err := <-errChan:
+			return err
 		case <-ctx.Done():
 			return ctx.Err()
-		case msg := <-msgChan:
-			logger.Debug().Str("fn", "run").
-				Msgf("capturing streams for devices due to topic: %v, & message %v", msg.Topic(), msg.Payload())
-			err := loopDevices(ctx, a, cs, true)
-			if err != nil {
-				logger.Error().
-					Str("fn", "main").
-					Str("target", "loopDevices").
-					Bool("motionDetected", true).
-					Err(err).
-					Send()
-				return err
-			}
-			logger.Debug().Str("fn", "run").
-				Msg("captured streams, continuing loop")
 		case <-archiveTicker.C:
-			// Archive old images every 4 hours
 			logger.Debug().Str("fn", "run").
 				Msg("devicecapture is archiving old images")
+
 			arch := archive.NewArchivist(a.Conf, a.Db.GetQueries())
-			archiveErr := arch.Run(ctx)
-			if archiveErr != nil {
-				logger.Error().Str("Archivist", "Run").
-					Err(archiveErr).
-					Send()
+			aErr := arch.Run(ctx)
+			if aErr != nil {
+				errChan <- aErr
 			}
 		case <-snapshotTicker.C:
-			err := loopDevices(ctx, a, cs, false)
-			if err != nil {
-				logger.Error().
-					Str("fn", "main").
-					Str("target", "loopDevices").
-					Bool("motionDetected", false).
-					Err(err).Send()
-				return err
+			loopErr := loopDevices(ctx, a, cs)
+			if loopErr != nil {
+				errChan <- loopErr
 			}
 			logger.Debug().Str("fn", "main").
-				Msg("sleeping...")
-			//time.Sleep(30 * time.Second)
+				Msg("Successfully loopedDevices w/o motion")
 		}
 	}
 }
@@ -185,16 +159,12 @@ func loopDevices(
 	ctx context.Context,
 	a *app.App,
 	cs *camera.CameraService,
-	motionDetected bool,
 ) error {
 	logger.Debug().Str("fn", "main.loop").Msg("begin...")
 	deviceRepo := a.AppDeps.DeviceRepo
 	deviceList, rErr := deviceRepo.ListDevices(ctx)
 	if rErr != nil {
 		return rErr
-	}
-	if motionDetected {
-		return captureStreams(ctx, deviceList, cs)
 	}
 	return captureSnapshots(ctx, deviceList, cs)
 }
@@ -204,21 +174,6 @@ func captureSnapshots(ctx context.Context, ds []devices.Device, cs *camera.Camer
 	for _, device := range ds {
 		g.Go(func() error {
 			err := cs.Snapshot(c, device)
-			if err != nil {
-				logger.Error().Str("fn", "main.captureSnapshots").
-					Err(err).Send()
-			}
-			return err
-		})
-	}
-	return g.Wait()
-}
-
-func captureStreams(ctx context.Context, ds []devices.Device, cs *camera.CameraService) error {
-	g, c := errgroup.WithContext(ctx)
-	for _, device := range ds {
-		g.Go(func() error {
-			err := cs.StreamSnapshots(c, device, 15)
 			if err != nil {
 				logger.Error().Str("fn", "main.captureSnapshots").
 					Err(err).Send()

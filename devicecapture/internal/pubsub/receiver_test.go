@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"devicecapture/internal/config"
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain/queue"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,8 +37,8 @@ func createTestImage() image.Image {
 }
 
 // createTestFrame creates a test frame with the given timestamp
-func createTestFrame(timestamp int64) receiver.Frame {
-	return receiver.Frame{
+func createTestFrame(timestamp int64) queue.Frame {
+	return queue.Frame{
 		Buf:       []byte("test-frame-data"),
 		Image:     createTestImage(),
 		Timestamp: timestamp,
@@ -68,21 +68,21 @@ func Test_New_MqttReceiver(t *testing.T) {
 		client *MqttClient
 	}{
 		{
-			name:   "creates receiver with valid client",
+			name:   "creates queue with valid client",
 			client: &MqttClient{},
 		},
 		{
-			name:   "creates receiver with nil client",
+			name:   "creates queue with nil client",
 			client: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := NewMqttReceiver(tt.client, getTestConfig(""))
+			rec := NewMqttPublisher(tt.client, getTestConfig(""))
 
 			if rec == nil {
-				t.Fatal("NewMqttReceiver returned nil")
+				t.Fatal("NewMqttPublisher returned nil")
 			}
 
 			if rec.client != tt.client {
@@ -99,7 +99,7 @@ func Test_MqttReceiver_StartSession(t *testing.T) {
 
 	// Create a test client (doesn't need to be connected for this test)
 	client := &MqttClient{}
-	rec := NewMqttReceiver(client, getTestConfig(tempDir))
+	rec := NewMqttPublisher(client, getTestConfig(tempDir))
 
 	deviceId := "test-domain-123"
 
@@ -112,7 +112,7 @@ func Test_MqttReceiver_StartSession(t *testing.T) {
 	a.Equalf(
 		session.DeviceID,
 		deviceId,
-		"Expected receiver session domain ID %s, got %s",
+		"Expected queue session domain ID %s, got %s",
 		deviceId,
 		session.DeviceID,
 	)
@@ -124,7 +124,7 @@ func Test_FrameJson(t *testing.T) {
 	fileName := "/path/to/test.jpg"
 	frame := createTestFrame(1234567890)
 
-	jsonStr, err := receiver.FrameJson("", deviceId, fileName, frame)
+	jsonStr, err := queue.FrameJson("", deviceId, fileName, frame)
 	if err != nil {
 		t.Fatalf("FrameJson failed: %v", err)
 	}
@@ -154,7 +154,7 @@ func Benchmark_FrameJson(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := receiver.FrameJson("", deviceId, fileName, frame)
+		_, err := queue.FrameJson("", deviceId, fileName, frame)
 		if err != nil {
 			b.Fatal(err)
 		}

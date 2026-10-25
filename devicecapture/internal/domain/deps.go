@@ -4,7 +4,7 @@ import (
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/domain/event"
 	"devicecapture/internal/domain/history"
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain/queue"
 )
 
 type Deps struct {
@@ -12,7 +12,7 @@ type Deps struct {
 	HeartbeatRepo devices.HeartbeatRepo
 	ImageRepo     devices.ImageRepo
 	DetectionRepo devices.DetectionRepo
-	Publisher     receiver.Publisher
+	Publisher     queue.Publisher
 	HistoryRepo   history.DetectionHistoryRepo
 	EventRepo     event.DetectionEventRepo
 }
@@ -22,7 +22,7 @@ func NewDeps(
 	hb devices.HeartbeatRepo,
 	detRepo devices.DetectionRepo,
 	img devices.ImageRepo,
-	publisher receiver.Publisher,
+	publisher queue.Publisher,
 	hr history.DetectionHistoryRepo,
 	er event.DetectionEventRepo,
 ) *Deps {
@@ -43,7 +43,7 @@ func NewMockDeps() *Deps {
 		HeartbeatRepo: devices.NewMockHeartbeat(),
 		ImageRepo:     devices.NewMockImageRepo(),
 		DetectionRepo: devices.NewMockDetection(),
-		Publisher:     receiver.NewMockFrameRepo(),
+		Publisher:     queue.NewMockFrameRepo(),
 		HistoryRepo:   history.NewMockDetectionHistory(),
 		EventRepo:     event.NewMockEventRepo(),
 	}

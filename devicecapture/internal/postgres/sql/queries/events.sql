@@ -1,5 +1,15 @@
 -- name: GetEvent :one
-SELECT * FROM detection_events WHERE id = @id LIMIT 1;
+SELECT *
+FROM detection_events
+WHERE id = @id
+LIMIT 1;
+
+-- name: GetLatest :one
+SELECT *
+FROM detection_events
+WHERE device_id = @id
+ORDER BY created_at DESC
+LIMIT 1;
 
 -- name: GetEvents :many
 SELECT *
@@ -33,7 +43,7 @@ WHERE (
         END
     )
 ORDER BY created_at DESC
-LIMIT @lim OFFSET @OFF;
+LIMIT @lim OFFSET @off;
 
 -- name: StartEvent :one
 INSERT INTO detection_events(id, device_id, created_at, ended_at, labels, state)

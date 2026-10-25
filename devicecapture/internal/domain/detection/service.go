@@ -2,6 +2,7 @@ package detection
 
 import (
 	"context"
+	"devicecapture/internal/logger"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"devicecapture/internal/config"
-	"devicecapture/internal/domain/devices"
 )
 
 // ObjectDetectionService implements ObjectDetector
@@ -79,7 +79,8 @@ func (o ObjectDetectionService) sendImage(imageBytes []byte) ([]Detection, error
 		_ = conn.Close()
 	}(conn)
 
-	fmt.Printf("Sending image to: %s\n", o.url)
+	logger.Debug().Str("ObjectDetectionService", "sendImage").
+		Msgf("url %s", o.url)
 	// Send image length (4 bytes, big-endian)
 	lengthBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(lengthBytes, uint32(len(imageBytes)))
@@ -91,8 +92,8 @@ func (o ObjectDetectionService) sendImage(imageBytes []byte) ([]Detection, error
 	if _, err := conn.Write(imageBytes); err != nil {
 		return nil, fmt.Errorf("failed to send image: %w", err)
 	}
-	fmt.Println("Receiving response")
-
+	logger.Debug().Str("ObjectDetectionService", "sendImage").
+		Msg("Receiving response")
 	// Read response length (4 bytes)
 	responseLengthBytes := make([]byte, 4)
 	if _, err := io.ReadFull(conn, responseLengthBytes); err != nil {
@@ -114,27 +115,4 @@ func (o ObjectDetectionService) sendImage(imageBytes []byte) ([]Detection, error
 	}
 
 	return detections, nil
-}
-
-// DeviceDetectionToService domain interop for device devices.Detection -> Detection
-func DeviceDetectionToService(d devices.Detection) Detection {
-	bbox := BBox{
-		X1: d.Bbox[0][0],
-		Y1: d.Bbox[0][1],
-		X2: d.Bbox[1][0],
-		Y2: d.Bbox[1][1],
-	}
-	return Detection{
-		Confidence: d.Confidence,
-		Label:      d.Label,
-		Bbox:       bbox,
-	}
-}
-
-func DeviceDetectionsToService(ds []devices.Detection) []Detection {
-	var dList []Detection
-	for _, d := range ds {
-		dList = append(dList, DeviceDetectionToService(d))
-	}
-	return dList
 }

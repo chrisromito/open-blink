@@ -124,6 +124,13 @@ func (r *capturingEventRepo) GetEvent(ctx context.Context, id int64) (event.Dete
 	return r.delegate.GetEvent(ctx, id)
 }
 
+func (r *capturingEventRepo) GetLatest(
+	ctx context.Context,
+	deviceID int64,
+) (event.DetectionEvent, error) {
+	return r.delegate.GetLatest(ctx, deviceID)
+}
+
 func (r *capturingEventRepo) StartEvent(
 	ctx context.Context,
 	deviceID int64,

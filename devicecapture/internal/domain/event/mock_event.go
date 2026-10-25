@@ -37,6 +37,20 @@ func (de *MockEventRepo) GetEvent(
 	return DetectionEvent{}, nil
 }
 
+func (de *MockEventRepo) GetLatest(
+	_ context.Context,
+	deviceID int64,
+) (DetectionEvent, error) {
+	de.mu.Lock()
+	defer de.mu.Unlock()
+	for _, evt := range de.events {
+		if evt.DeviceID == deviceID {
+			return evt, nil
+		}
+	}
+	return DetectionEvent{}, nil
+}
+
 // StartEvent implements DetectionEventRepo
 func (de *MockEventRepo) StartEvent(
 	_ context.Context,

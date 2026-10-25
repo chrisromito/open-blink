@@ -404,6 +404,27 @@ func (q *Queries) GetDevices(ctx context.Context) ([]Device, error) {
 	return items, nil
 }
 
+const getImage = `-- name: GetImage :one
+SELECT id, device_id, event_id, image_path, annotated_path, created_at
+FROM device_images
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetImage(ctx context.Context, id int64) (DeviceImage, error) {
+	row := q.db.QueryRow(ctx, getImage, id)
+	var i DeviceImage
+	err := row.Scan(
+		&i.ID,
+		&i.DeviceID,
+		&i.EventID,
+		&i.ImagePath,
+		&i.AnnotatedPath,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getImagesForEvent = `-- name: GetImagesForEvent :many
 SELECT id, device_id, event_id, image_path, annotated_path, created_at
 FROM device_images
@@ -565,5 +586,34 @@ type UpdateDeviceParams struct {
 
 func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) error {
 	_, err := q.db.Exec(ctx, updateDevice, arg.ID, arg.Name, arg.DeviceUrl)
+	return err
+}
+
+const updateImage = `-- name: UpdateImage :exec
+UPDATE device_images
+SET annotated_path = $1::varchar,
+    event_id       =
+        CASE
+            WHEN $2::bool
+                THEN $3::bigint
+            ELSE event_id
+            END
+WHERE id = $4::bigint
+`
+
+type UpdateImageParams struct {
+	AnnotatedPath string `db:"annotated_path" json:"annotated_path"`
+	SetEventID    bool   `db:"set_event_id" json:"set_event_id"`
+	EventID       int64  `db:"event_id" json:"event_id"`
+	ID            int64  `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateImage(ctx context.Context, arg UpdateImageParams) error {
+	_, err := q.db.Exec(ctx, updateImage,
+		arg.AnnotatedPath,
+		arg.SetEventID,
+		arg.EventID,
+		arg.ID,
+	)
 	return err
 }

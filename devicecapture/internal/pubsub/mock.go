@@ -20,6 +20,7 @@ func NewMockClient() *FakeClient {
 	return &FakeClient{
 		Client:   c,
 		messages: map[string][][]byte{},
+		handlers: map[string]mqtt.MessageHandler{},
 		mu:       sync.Mutex{},
 	}
 }

@@ -107,6 +107,8 @@ func DetectionEventListHandler(a *app.App) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		logger.Debug().Str("api", "DetectionEventList").
+			Any("params", reqParams).Send()
 		ds, dbErr := a.AppDeps.EventRepo.GetDetectionEvents(r.Context(), event.QueryParams{
 			DeviceID: reqParams.DeviceID,
 			Page:     reqParams.Page,

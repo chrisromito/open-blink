@@ -7,10 +7,29 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+  runtime-base:
+    image: openblink-runtime-base:local
+    build:
+      context: ./devicecapture
+      dockerfile: docker/runtime-base.Dockerfile
+    profiles:
+      - build-only
+
+  go-base:
+    image: openblink-go-base:local
+    build:
+      context: ./devicecapture
+      dockerfile: docker/go-base.Dockerfile
+    profiles:
+      - build-only
+
   devicecapture:
     build:
       context: ./devicecapture
       dockerfile: docker/Dockerfile
+      args:
+        GO_BUILD_BASE: openblink-go-base:local
+        RUNTIME_BASE: openblink-runtime-base:local
     container_name: devicecapture
     networks:
       - openblink
@@ -20,10 +39,14 @@ services:
       - postgres
     env_file: .env
     restart: unless-stopped
+
   deviceserver:
     build:
       context: ./devicecapture
       dockerfile: docker/deviceserver.Dockerfile
+      args:
+        GO_BUILD_BASE: openblink-go-base:local
+        RUNTIME_BASE: openblink-runtime-base:local
     container_name: deviceserver
     networks:
       - openblink
@@ -36,10 +59,13 @@ services:
       - postgres
     env_file: .env
     restart: unless-stopped
+
   test:
     build:
       context: ./devicecapture
       dockerfile: docker/test.Dockerfile
+      args:
+        GO_BUILD_BASE: openblink-go-base:local
     networks:
       - openblink
     volumes:
@@ -47,6 +73,7 @@ services:
     depends_on:
       - postgres
     env_file: .env.example
+
   postgres:
     image: postgres:16-alpine3.22
     environment:

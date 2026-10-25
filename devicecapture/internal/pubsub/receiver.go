@@ -1,156 +1,385 @@
-// Package pubsub receiver corresponds with domain/receiver interface
+// Package pubsub queue corresponds with domain/queue interface
 package pubsub
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"image/jpeg"
-	"os"
 	"strconv"
+	"strings"
 
+	"devicecapture/internal/camera"
 	"devicecapture/internal/config"
-	"devicecapture/internal/domain/devices"
-	"devicecapture/internal/domain/event"
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain"
+	"devicecapture/internal/domain/detection"
+	"devicecapture/internal/domain/queue"
 	"devicecapture/internal/logger"
+	"devicecapture/internal/pubsub/detectionevent"
+	"devicecapture/internal/pubsub/detections"
+	"devicecapture/internal/pubsub/deviceimage"
+	"golang.org/x/sync/errgroup"
 )
 
-// MqttPublisher implements receiver.Publisher
-type MqttPublisher struct {
-	client    *MqttClient
-	videoPath string
-	serverIp  string
+type mqttEvent struct {
+	Topic   string
+	Payload []byte
 }
 
-func NewMqttReceiver(client *MqttClient, conf *config.Config) *MqttPublisher {
-	return &MqttPublisher{
-		client:    client,
-		videoPath: conf.VideoPath,
-		serverIp:  conf.ThisIp,
+// MqttReceiver implements queue.Receiver
+type MqttReceiver struct {
+	Deps             *domain.Deps
+	Conf             *config.Config
+	client           *MqttClient
+	publisher        queue.Publisher
+	detectionTracker *detections.DetectionTracker
+	cameraService    *camera.CameraService
+}
+
+func NewMqttReceiver(
+	deps *domain.Deps,
+	conf *config.Config,
+	client *MqttClient,
+	publisher queue.Publisher,
+) *MqttReceiver {
+	var detectionTracker *detections.DetectionTracker
+	if deps != nil {
+		detectionTracker = detections.NewDetectionTracker(deps)
+	}
+	cs := camera.NewCameraService(
+		conf,
+		deps,
+		detection.NewObjectDetectionService(conf),
+	)
+
+	return &MqttReceiver{
+		Deps:             deps,
+		Conf:             conf,
+		client:           client,
+		publisher:        publisher,
+		detectionTracker: detectionTracker,
+		cameraService:    cs,
 	}
 }
 
-// StartSession Start a receiver.CaptureSession
-func (r *MqttPublisher) StartSession(deviceId string) (*receiver.CaptureSession, error) {
-	s := receiver.NewCaptureSession(deviceId)
-	err := r.checkSessionDir(s)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
+func (mr *MqttReceiver) Run(ctx context.Context) error {
+	g, c := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return mr.SubscribeDeviceImage(c)
+	})
+
+	// Detection goroutine
+	g.Go(func() error {
+		return mr.SubscribeDetection(ctx)
+	})
+
+	g.Go(func() error {
+		return mr.SubscribeDetectionEvent(ctx)
+	})
+
+	g.Go(func() error {
+		return mr.SubscribeMotion(ctx)
+	})
+
+	return g.Wait()
 }
 
-func (r *MqttPublisher) EndSession(session *receiver.CaptureSession) error {
-	if session == nil {
+// SubscribeDeviceImage deviceImage -> detections
+func (mr *MqttReceiver) SubscribeDeviceImage(ctx context.Context) error {
+	deviceImageChan := make(chan mqttEvent, 32)
+	defer close(deviceImageChan)
+
+	deviceImageMqttHandler := MessageHandler(func(topic string, payload []byte) error {
+		select {
+		case deviceImageChan <- mqttEvent{
+			Topic:   topic,
+			Payload: payload,
+		}:
+		case <-ctx.Done():
+			return nil
+		}
 		return nil
-	}
-	topic := fmt.Sprintf("end-stream/%s", session.DeviceID)
-	payload := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
-	err := r.client.Publish(topic, payload)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+	})
 
-// PublishFrame publishes Frames (JSON) to "image/<deviceID>"
-func (r *MqttPublisher) PublishFrame(
-	frame receiver.Frame,
-	framePath string,
-	deviceId string,
-) error {
-	logger.Debug().Str("receiver", "PublishFrame").
-		Msgf("mqttreceiver.PublishFrame")
-	payload, err := receiver.FrameJson(r.serverIp, deviceId, framePath, frame)
-	if err != nil {
-		logger.Error().Msgf("error from FrameJson for %s", framePath)
-		return err
+	// open-blink/devices/+/images/created reads images and writes detections
+	deviceImageSubErr := mr.client.Subscribe(
+		deviceimage.SubscribeCreatedTopic(),
+		deviceImageMqttHandler,
+	)
+	if deviceImageSubErr != nil {
+		return deviceImageSubErr
 	}
-	topic := fmt.Sprintf("image/%s", deviceId)
-	err = r.client.Publish(topic, payload)
-	logger.Debug().Msgf("Writing device %s frame to topic: %v ", deviceId, topic)
-	if err != nil {
-		logger.Error().Msgf("error publishing device %s frame to topic %v", deviceId, topic)
-		return err
-	}
-	return nil
-}
 
-// WriteFrame writes [receiver.Frame] to the FileSystem
-func (r *MqttPublisher) WriteFrame(frame receiver.Frame, framePath string) error {
-	var fp = framePath
-	logger.Debug().Str("receiver", "WriteFrame").
-		Msgf("Writing frame to file: %v at %s", frame.Timestamp, fp)
-	f, err := os.Create(fp)
-	defer func(f *os.File) {
-		_ = f.Close()
-	}(f)
-	if err != nil {
-		logger.Error().Msgf("error writing frame to file %v @ %s", frame.Timestamp, fp)
-		return err
-	}
-	err2 := jpeg.Encode(f, frame.Image, nil)
-	if err2 != nil {
-		logger.Error().Str("receiver", "WriteFrame").
-			Msgf("error encoding frame to JPEG for %s", fp)
-		return err2
-	}
-	return nil
-}
-
-func (r *MqttPublisher) PublishDetections(
-	deviceID int64,
-	img devices.DeviceImage,
-	detections []devices.Detection,
-) error {
-	// Marshal detections to JSON string
-	p, jErr := receiver.DetectionsToMsg(r.serverIp, img, detections)
-	if jErr != nil {
-		logger.Error().Str("service", "receiver").
-			Err(jErr).Send()
-		return jErr
-	}
-	// Publish batch to MQTT
-
-	topic := fmt.Sprintf("detections/%d", deviceID)
-	qtErr := r.client.Publish(topic, p)
-	if qtErr != nil {
-		logger.Error().Str("service", "receiver").
-			Str("method", "PublishDetections").
-			Err(qtErr).Send()
-		return qtErr
-	}
-	return nil
-}
-
-func (r *MqttPublisher) PublishDetectionEvent(evt event.DetectionEvent) error {
-	dID := strconv.Itoa(int(evt.DeviceID))
-	ds, err := event.DetectionStateFromValue(evt.State)
-	if err != nil {
-		return err
-	}
-	topic := fmt.Sprintf("detection-event/%s/%s", dID, ds.String())
-	payload, jerr := json.Marshal(evt)
-	if jerr != nil {
-		return jerr
-	}
-	qtErr := r.client.Publish(topic, payload)
-	if qtErr != nil {
-		logger.Error().Str("service", "camera").
-			Str("method", "PublishDetectionEvent").
-			Err(qtErr).Send()
-	}
-	return qtErr
-}
-
-func (r *MqttPublisher) checkSessionDir(session *receiver.CaptureSession) error {
-	dir := fmt.Sprintf("%s/%s-%v", r.videoPath, session.DeviceID, session.StartedAt)
-	_, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			return err
+	deviceImageProcessor := deviceimage.NewDeviceImageProcessor(
+		mr.Conf,
+		mr.Deps,
+		detection.NewObjectDetectionService(mr.Conf),
+	)
+	receiver := deviceimage.NewReceiver(deviceImageProcessor)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-deviceImageChan:
+			err := receiver.Handle(ctx, msg.Topic, msg.Payload)
+			if err != nil {
+				logger.Error().
+					Str("MqttReceiver", "ReceiveDeviceImage").
+					Str("topic", msg.Topic).
+					Err(err).
+					Send()
+				return err
+			}
 		}
 	}
+}
+
+// SubscribeDetection reads [devices.Detection] and writes [event.DetectionEvent]
+func (mr *MqttReceiver) SubscribeDetection(ctx context.Context) error {
+	detectionChan := make(chan mqttEvent)
+	defer close(detectionChan)
+	detectionHandler := MessageHandler(func(topic string, payload []byte) error {
+		select {
+		case detectionChan <- mqttEvent{
+			Topic:   topic,
+			Payload: payload,
+		}:
+		case <-ctx.Done():
+			return nil
+		}
+		return nil
+	})
+	detectionSubErr := mr.client.Subscribe(
+		detections.SubscribeTopic(),
+		detectionHandler,
+	)
+	if detectionSubErr != nil {
+		return detectionSubErr
+	}
+
+	tracker := detections.NewDetectionTracker(mr.Deps)
+	receiver := detections.NewReceiver(tracker)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-detectionChan:
+			logger.Debug().
+				Str("MqttReceiver", "ReceiveDetection").
+				Str("topic", msg.Topic).
+				Msgf("receiver.Handle(ctx, %s, payload)", msg.Topic)
+			err := receiver.Handle(ctx, msg.Topic, msg.Payload)
+			if err != nil {
+				logger.Error().
+					Str("MqttReceiver", "ReceiveDetection").
+					Str("topic", msg.Topic).
+					Err(err).
+					Send()
+				return err
+			}
+		}
+	}
+}
+
+//func (mr *MqttReceiver) ReceiveDetection(ctx context.Context, topic string, payload []byte) error {
+//	if err := ctx.Err(); err != nil {
+//		return err
+//	}
+//
+//	if mr == nil {
+//		return fmt.Errorf("receive detection: receiver is nil")
+//	}
+//	if mr.Deps == nil {
+//		return fmt.Errorf("receive detection: deps are required")
+//	}
+//	if mr.detectionTracker == nil {
+//		mr.detectionTracker = detections.NewDetectionTracker(mr.Deps)
+//	}
+//
+//	receiver := detections.NewReceiver(detections.HandlerFunc(
+//		func(ctx context.Context, msg detections.Message) error {
+//			if msg.Image.DeviceID != 0 && msg.Image.DeviceID != msg.DeviceID {
+//				return fmt.Errorf(
+//					"detections payload image device id %d does not match payload device id %d",
+//					msg.Image.DeviceID,
+//					msg.DeviceID,
+//				)
+//			}
+//
+//			trackerDetections := trackerDetectionsFromDeviceDetections(msg.Detections)
+//
+//			logger.Debug().
+//				Str("receiver", "ReceiveDetection").
+//				Str("topic", topic).
+//				Int64("deviceID", msg.DeviceID).
+//				Int("detectionCount", len(trackerDetections)).
+//				Send()
+//
+//			if err := mr.detectionTracker.ReceiveDetections(
+//				ctx,
+//				msg.DeviceID,
+//				trackerDetections,
+//			); err != nil {
+//				return fmt.Errorf("receive detections for device %d: %w", msg.DeviceID, err)
+//			}
+//
+//			if msg.Image.ID != 0 {
+//				if err := mr.detectionTracker.ReceiveImage(ctx, msg.DeviceID, msg.Image); err != nil {
+//					return fmt.Errorf(
+//						"track image %d for device %d: %w",
+//						msg.Image.ID,
+//						msg.DeviceID,
+//						err,
+//					)
+//				}
+//			}
+//
+//			return nil
+//		},
+//	))
+//
+//	return receiver.Handle(ctx, topic, payload)
+//}
+
+func (mr *MqttReceiver) SubscribeDetectionEvent(ctx context.Context) error {
+	// DetectionEvent subscription
+	eventChan := make(chan mqttEvent)
+	defer close(eventChan)
+	eventHandler := MessageHandler(func(topic string, payload []byte) error {
+		select {
+		case eventChan <- mqttEvent{
+			Topic:   topic,
+			Payload: payload,
+		}:
+		case <-ctx.Done():
+			return nil
+		}
+		return nil
+	})
+
+	eventSubErr := mr.client.Subscribe(
+		detectionevent.SubscribeCreatedTopic(),
+		eventHandler,
+	)
+	if eventSubErr != nil {
+		return eventSubErr
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-eventChan:
+			err := mr.ReceiveDetectionEvent(ctx, msg.Topic, msg.Payload)
+			if err != nil {
+				logger.Error().
+					Str("MqttReceiver", "ReceiveDetectionEvent").
+					Str("topic", msg.Topic).
+					Err(err).
+					Send()
+				return err
+			}
+		}
+	}
+}
+
+// ReceiveDetectionEvent MqttReceiver implements [queue.Receiver]
+func (mr *MqttReceiver) ReceiveDetectionEvent(
+	ctx context.Context,
+	topic string,
+	payload []byte,
+) error {
+	// FIXME Implement this method
+	logger.Debug().Str("receiver", "ReceiveDetectionEvent").
+		Str("topic", topic).
+		Str("payload", string(payload))
 	return nil
+}
+
+// SubscribeMotion handles motion-detection subscription and delegation
+func (mr *MqttReceiver) SubscribeMotion(ctx context.Context) error {
+	// Motion
+	motionChan := make(chan mqttEvent)
+	defer close(motionChan)
+
+	motionHandler := MessageHandler(func(topic string, payload []byte) error {
+		select {
+		case motionChan <- mqttEvent{
+			Topic:   topic,
+			Payload: payload,
+		}:
+		case <-ctx.Done():
+			return nil
+		}
+		return nil
+	})
+	motionSubErr := mr.client.Subscribe(
+		"open-blink/motion-detected/#",
+		motionHandler,
+	)
+	if motionSubErr != nil {
+		return motionSubErr
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-motionChan:
+			err := mr.ReceiveMotion(ctx, msg.Topic, msg.Payload)
+			if err != nil {
+				logger.Error().
+					Str("MqttReceiver", "ReceiveMotion").
+					Str("topic", msg.Topic).
+					Err(err).
+					Send()
+				return err
+			}
+		}
+	}
+}
+
+// ReceiveMotion MqttReceiver implements [queue.Receiver]
+func (mr *MqttReceiver) ReceiveMotion(ctx context.Context, topic string, _ []byte) error {
+	logger.Debug().Str("MqttReceiver", "ReceiveMotion").
+		Str("topic", topic).
+		Send()
+
+	deviceID, idErr := parseMotionDetectedDeviceID(topic)
+	if idErr != nil {
+		logger.Error().Err(idErr).Str("MqttReceiver", "ReceiveMotion").Send()
+		return idErr
+	}
+	d, dErr := mr.Deps.DeviceRepo.GetDevice(ctx, deviceID)
+	if dErr != nil {
+		return dErr
+	}
+	return mr.cameraService.StreamSnapshots(ctx, d, 15)
+}
+
+func parseMotionDetectedDeviceID(topic string) (int64, error) {
+	const prefix = "open-blink/motion-detected"
+
+	deviceIDPart, ok := strings.CutPrefix(topic, prefix)
+	if !ok {
+		return 0, fmt.Errorf("motion topic %q does not start with %q", topic, prefix)
+	}
+
+	deviceIDPart = strings.TrimPrefix(deviceIDPart, "/")
+	if deviceIDPart == "" {
+		return 0, fmt.Errorf("motion topic %q is missing device id", topic)
+	}
+
+	if strings.Contains(deviceIDPart, "/") {
+		return 0, fmt.Errorf("motion topic %q has invalid device id %q", topic, deviceIDPart)
+	}
+
+	deviceID, err := strconv.ParseInt(deviceIDPart, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse device id from motion topic %q: %w", topic, err)
+	}
+
+	if deviceID <= 0 {
+		return 0, fmt.Errorf("motion topic %q has invalid device id %d", topic, deviceID)
+	}
+
+	return deviceID, nil
 }

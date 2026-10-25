@@ -144,6 +144,8 @@ func getTestConfig(videoPath string) *config.Config {
 	}
 	return &config.Config{
 		MqttHost:            "",
+		MqttUser:            "",
+		MqttPassword:        "",
 		DbUrl:               "postgres://postgres:postgres@postgres:5432/test_openblink",
 		VideoPath:           videoPath,
 		DetectionServiceUrl: "http://0.0.0.0:4000",

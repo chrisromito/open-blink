@@ -45,7 +45,10 @@ func (q *Queries) EndStaleDetectionEvents(ctx context.Context) error {
 }
 
 const getEvent = `-- name: GetEvent :one
-SELECT id, device_id, created_at, ended_at, labels, state FROM detection_events WHERE id = $1 LIMIT 1
+SELECT id, device_id, created_at, ended_at, labels, state
+FROM detection_events
+WHERE id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetEvent(ctx context.Context, id int64) (DetectionEvent, error) {
@@ -212,6 +215,28 @@ func (q *Queries) GetEvents(ctx context.Context, arg GetEventsParams) ([]Detecti
 		return nil, err
 	}
 	return items, nil
+}
+
+const getLatest = `-- name: GetLatest :one
+SELECT id, device_id, created_at, ended_at, labels, state
+FROM detection_events
+WHERE device_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatest(ctx context.Context, id int64) (DetectionEvent, error) {
+	row := q.db.QueryRow(ctx, getLatest, id)
+	var i DetectionEvent
+	err := row.Scan(
+		&i.ID,
+		&i.DeviceID,
+		&i.CreatedAt,
+		&i.EndedAt,
+		&i.Labels,
+		&i.State,
+	)
+	return i, err
 }
 
 const startEvent = `-- name: StartEvent :one

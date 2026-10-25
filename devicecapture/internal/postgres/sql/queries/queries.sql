@@ -128,6 +128,23 @@ INSERT INTO device_images (id, device_id, event_id, created_at, image_path, anno
 VALUES (DEFAULT, @device_id, @event_id, DEFAULT, @image_path, @annotated_path)
 RETURNING *;
 
+-- name: UpdateImage :exec
+UPDATE device_images
+SET annotated_path = @annotated_path::varchar,
+    event_id       =
+        CASE
+            WHEN @set_event_id::bool
+                THEN @event_id::bigint
+            ELSE event_id
+            END
+WHERE id = @id::bigint;
+
+-- name: GetImage :one
+SELECT *
+FROM device_images
+WHERE id = @id
+LIMIT 1;
+
 -- name: GetDeviceImages :many
 SELECT *
 FROM device_images

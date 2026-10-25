@@ -3,6 +3,7 @@ package devices
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -38,6 +39,28 @@ func (ir *MockImage) CreateImage(_ context.Context, params CreateImageParams) (D
 	}
 	ir.ds = append(ir.ds, img)
 	return img, nil
+}
+
+func (ir *MockImage) UpdateImage(_ context.Context, params UpdateImageParams) (DeviceImage, error) {
+	ir.mu.Lock()
+	defer ir.mu.Unlock()
+	for i, img := range ir.ds {
+		if img.ID == params.ID {
+			next := DeviceImage{
+				ID:            img.ID,
+				DeviceID:      img.DeviceID,
+				CreatedAt:     img.CreatedAt,
+				ImagePath:     img.ImagePath,
+				AnnotatedPath: params.AnnotatedPath,
+			}
+			if params.EventID != nil {
+				next.EventID = params.EventID
+			}
+			ir.ds[i] = next
+			return next, nil
+		}
+	}
+	return DeviceImage{}, errors.New(fmt.Sprintf("invalid imageID %d", params.ID))
 }
 
 func (ir *MockImage) GetImages(_ context.Context, deviceID int64) ([]DeviceImage, error) {

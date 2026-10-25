@@ -21,9 +21,16 @@ type CreateImageParams struct {
 	AnnotatedPath string `db:"annotated_path" json:"annotated_path"`
 }
 
+type UpdateImageParams struct {
+	ID            int64  `db:"id" json:"id"`
+	EventID       *int64 `db:"event_id"       json:"event_id"`
+	AnnotatedPath string `db:"annotated_path" json:"annotated_path"`
+}
+
 type ImageRepo interface {
 	CreateImage(ctx context.Context, params CreateImageParams) (DeviceImage, error)
 	GetImages(ctx context.Context, deviceID int64) ([]DeviceImage, error)
+	UpdateImage(ctx context.Context, params UpdateImageParams) (DeviceImage, error)
 	GetImagesForEvent(ctx context.Context, eventID int64) ([]DeviceImage, error)
 	SetEvent(ctx context.Context, ids []int64, eventID int64) error
 }

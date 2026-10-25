@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+	"devicecapture/internal/logger"
 
 	"devicecapture/internal/domain/devices"
 	"devicecapture/internal/postgres/db"
@@ -28,6 +29,33 @@ func (ir *PgImageRepo) CreateImage(
 		return devices.DeviceImage{}, err
 	}
 	return ImageDbToDomain(dbImg), nil
+}
+
+func (ir *PgImageRepo) UpdateImage(
+	ctx context.Context,
+	params devices.UpdateImageParams,
+) (devices.DeviceImage, error) {
+	p := db.UpdateImageParams{
+		ID:            params.ID,
+		AnnotatedPath: params.AnnotatedPath,
+		EventID:       int64(0),
+	}
+	if params.EventID != nil {
+		p.SetEventID = false
+		p.EventID = *params.EventID
+	}
+	err := ir.queries.UpdateImage(ctx, p)
+	if err != nil {
+		logger.Error().Str("DeviceImageRepo", "UpdateImage").
+			Err(err).Send()
+	}
+	img, qErr := ir.queries.GetImage(ctx, params.ID)
+	if qErr != nil {
+		logger.Error().Str("DeviceImageRepo", "UpdateImage").
+			Err(err).
+			Msgf("imageID %d not found", params.ID)
+	}
+	return ImageDbToDomain(img), nil
 }
 
 func (ir *PgImageRepo) GetImages(

@@ -1,22 +1,18 @@
-FROM debian:bookworm-slim AS base
-LABEL authors="chris"
+ARG GO_BUILD_BASE=openblink-go-base:local
+ARG RUNTIME_BASE=openblink-runtime-base:local
 
-WORKDIR /usr/src/app
+FROM ${GO_BUILD_BASE} AS build
 
-FROM golang:1.26.0 AS build
 WORKDIR /usr/src/build
 
-COPY ../go.mod go.sum ./
-RUN go mod download
-
 COPY . .
-RUN go build -v -o ./bin/deviceserver ./cmd/http
 
-FROM base AS final
+RUN go build -v -o /out/deviceserver ./cmd/http
+
+FROM ${RUNTIME_BASE} AS final
+
 WORKDIR /usr/src/app
-COPY --from=build /usr/src/build/bin .
 
-RUN mkdir -p videos
-RUN mkdir -p static
+COPY --from=build /out/deviceserver ./deviceserver
 
 CMD ["./deviceserver"]

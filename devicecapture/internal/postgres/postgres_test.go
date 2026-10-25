@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -17,23 +16,23 @@ func TestMain(m *testing.M) {
 		return
 	}
 	defer appDb.Db.Close()
-	ctx := context.Background()
-	err = preRun(ctx, appDb)
-	if err != nil {
-		os.Exit(1)
-		return
-	}
+	//ctx := context.Background()
+	//err = preRun(ctx, appDb)
+	//if err != nil {
+	//	os.Exit(1)
+	//	return
+	//}
 	code := m.Run()
 	fmt.Println("Test run complete, returning")
 	os.Exit(code)
 }
 
-func preRun(ctx context.Context, appDb *AppDb) error {
-	//db := appDb.Db
-	//_, err := db.Exec(ctx, "DELETE FROM devices")
-	//return err
-	return nil
-}
+//func preRun(ctx context.Context, appDb *AppDb) error {
+//	//db := appDb.Db
+//	//_, err := db.Exec(ctx, "DELETE FROM devices")
+//	//return err
+//	return nil
+//}
 
 func Test_Ping_TestDb(t *testing.T) {
 	a := assert.New(t)

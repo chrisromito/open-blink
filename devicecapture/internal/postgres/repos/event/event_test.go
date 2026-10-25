@@ -13,6 +13,40 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_GetEvent_Empty_Response(t *testing.T) {
+	a := assert.New(t)
+	appDb, dbErr := postgres.NewTestAppDb()
+	a.NoError(dbErr)
+	defer appDb.Db.Close()
+
+	q := appDb.GetQueries()
+	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
+
+	result, err := repo.GetEvent(t.Context(), -1)
+
+	a.NoError(err, "missing DetectionEvent IDs return an empty Event instead of an error")
+	a.Empty(result, "missing DetectionEvent IDs return an empty Event")
+}
+
+func Test_GetLatest_Empty_Response(t *testing.T) {
+	a := assert.New(t)
+	appDb, dbErr := postgres.NewTestAppDb()
+	a.NoError(dbErr)
+	defer appDb.Db.Close()
+
+	q := appDb.GetQueries()
+	repo := NewPgDetectionEventRepo(q, getTestConfig("/videos"))
+
+	testDevice, deviceErr := repos.GetTestDevice(t.Context(), q)
+	a.NoError(deviceErr)
+
+	result, err := repo.GetLatest(t.Context(), testDevice.ID)
+
+	a.NoError(err, "devices without DetectionEvents return an empty Event instead of an error")
+	a.Empty(result, "devices without DetectionEvents return an empty Event")
+}
+
+
 func Test_Labels_To_Db(t *testing.T) {
 	a := assert.New(t)
 	tests := []struct {

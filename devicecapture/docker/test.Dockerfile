@@ -1,11 +1,9 @@
-FROM golang:1.26.0 AS builder
-WORKDIR /usr/src/app
-COPY . .
-RUN go mod tidy
-RUN go install gotest.tools/gotestsum@latest
+ARG GO_BUILD_BASE=openblink-go-base:local
 
-FROM builder AS runner
+FROM ${GO_BUILD_BASE} AS runner
+
 WORKDIR /usr/src/app
-#CMD ["go", "test", "-timeout", "30s", "-v", "./..."]
-#CMD go run gotest.tools/gotestsum@latest -timeout 30s
-CMD gotestsum --format pkgname-and-test-fails -- -timeout 30s ./...
+
+COPY . .
+
+CMD ["gotestsum", "--format", "pkgname-and-test-fails", "--", "-timeout", "30s", "./..."]

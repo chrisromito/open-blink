@@ -1,4 +1,4 @@
-package receiver
+package queue
 
 import (
 	"encoding/json"

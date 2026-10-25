@@ -2,6 +2,8 @@ package event
 
 import (
 	"context"
+	"errors"
+	"github.com/jackc/pgx/v5"
 	"slices"
 	"strings"
 
@@ -31,6 +33,24 @@ func (de *PgDetectionEventRepo) GetEvent(
 ) (dEvent.DetectionEvent, error) {
 	evt, err := de.queries.GetEvent(ctx, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dEvent.DetectionEvent{}, nil
+		}
+		return dEvent.DetectionEvent{}, err
+	}
+	return de.dbToDomain(evt), nil
+}
+
+// GetLatest implements [dEvent.DetectionEventRepo]
+func (de *PgDetectionEventRepo) GetLatest(
+	ctx context.Context,
+	deviceID int64,
+) (dEvent.DetectionEvent, error) {
+	evt, err := de.queries.GetLatest(ctx, deviceID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dEvent.DetectionEvent{}, nil
+		}
 		return dEvent.DetectionEvent{}, err
 	}
 	return de.dbToDomain(evt), nil

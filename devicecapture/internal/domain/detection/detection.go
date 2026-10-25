@@ -3,12 +3,12 @@ package detection
 import (
 	"context"
 
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain/queue"
 )
 
 type Req struct {
 	DeviceId int64
-	Frame    receiver.Frame
+	Frame    queue.Frame
 }
 
 type Detection struct {
@@ -27,7 +27,7 @@ type BBox struct {
 type BatchResponse struct {
 	DeviceId   int64
 	Detections []Detection
-	Frame      receiver.Frame
+	Frame      queue.Frame
 }
 
 type ObjectDetector interface {

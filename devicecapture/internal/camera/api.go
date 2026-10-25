@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"devicecapture/internal/domain/receiver"
+	"devicecapture/internal/domain/queue"
 	"devicecapture/internal/logger"
 	"github.com/mattn/go-mjpeg"
 )
@@ -28,35 +28,35 @@ type Api struct {
 	Url      string
 }
 
-func NewFrame(b []byte) receiver.Frame {
+func NewFrame(b []byte) queue.Frame {
 	img, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
 		logger.Error().Msgf("Error decoding image: %v", err)
-		return receiver.Frame{
+		return queue.Frame{
 			Buf:       []byte{},
 			Image:     nil,
 			Timestamp: time.Now().UnixMilli(),
 		}
 	}
-	return receiver.Frame{
+	return queue.Frame{
 		Buf:       b,
 		Image:     img,
 		Timestamp: time.Now().UnixMilli(),
 	}
 }
 
-func NewFrameFromImage(img image.Image) receiver.Frame {
+func NewFrameFromImage(img image.Image) queue.Frame {
 	var buf bytes.Buffer
 	err := jpeg.Encode(&buf, img, nil)
 	if err != nil {
 		logger.Error().Msgf("Error decoding image: %v", err)
-		return receiver.Frame{
+		return queue.Frame{
 			Buf:       []byte{},
 			Image:     nil,
 			Timestamp: time.Now().UnixMilli(),
 		}
 	}
-	return receiver.Frame{
+	return queue.Frame{
 		Buf:       buf.Bytes(),
 		Image:     img,
 		Timestamp: time.Now().UnixMilli(),
@@ -85,13 +85,13 @@ func (a *Api) Ping() bool {
 	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
-func (a *Api) Snapshot(ctx context.Context) (receiver.Frame, error) {
+func (a *Api) Snapshot(ctx context.Context) (queue.Frame, error) {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
 	url := a.Url + "/snapshot"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	empty := receiver.Frame{}
+	empty := queue.Frame{}
 	if err != nil {
 		return empty, err
 	}
@@ -177,7 +177,7 @@ func (a *Api) Stream(ctx context.Context, stream *mjpeg.Stream) error {
 	}
 }
 
-func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- receiver.Frame) error {
+func (a *Api) StreamFrames(ctx context.Context, imgChan chan<- queue.Frame) error {
 	// Ping the API before we start streaming
 	if !a.Ping() {
 		return errors.New(fmt.Sprintf("could not stream from URL %s", a.Url))

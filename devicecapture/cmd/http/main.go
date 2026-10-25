@@ -31,21 +31,27 @@ import (
 
 func main() {
 	conf := config.NewConfig()
-	client, cerr := pubsub.BrokerHelper(
-		"go-deviceserver-"+uuid.New().String(),
-		conf.MqttHost,
-		conf.MqttUser,
-		conf.MqttPassword,
-	)
+	qtOpts := pubsub.NewMqttClientOptions(conf, "go-server-"+uuid.New().String())
+	client, cerr := pubsub.NewConnectedMqttClient(qtOpts)
 	if cerr != nil {
-		logger.Fatal().Msgf("Error creating MQTT client: %v", cerr)
+		logger.Fatal().Err(cerr).Msgf("Error creating MQTT client: %v", cerr)
 	}
-	defer func(client *pubsub.MqttClient) {
-		_ = client.Close()
-	}(&client)
-	if !client.Valid() {
-		logger.Fatal().Msgf("Failed to connect to a client")
-	}
+	defer client.Disconnect(250)
+	//client, cerr := pubsub.BrokerHelper(
+	//	"go-deviceserver-"+uuid.New().String(),
+	//	conf.MqttHost,
+	//	conf.MqttUser,
+	//	conf.MqttPassword,
+	//)
+	//if cerr != nil {
+	//	logger.Fatal().Msgf("Error creating MQTT client: %v", cerr)
+	//}
+	//defer func(client *pubsub.MqttClient) {
+	//	_ = client.Close()
+	//}(&client)
+	//if !client.Valid() {
+	//	logger.Fatal().Msgf("Failed to connect to a client")
+	//}
 	db := postgres.NewAppDb()
 	dberr := db.Connect(conf.DbUrl)
 	defer db.Db.Close()
@@ -60,13 +66,13 @@ func main() {
 		repos.NewPgHeartbeatRepo(queries),
 		repos.NewPgDetectionRepo(queries),
 		repos.NewPgImageRepo(queries),
-		pubsub.NewMqttReceiver(&client, conf),
+		pubsub.NewMqttPublisher(client, conf),
 		repos.NewPgDetectionHistoryRepo(queries, conf),
 		event.NewPgDetectionEventRepo(queries, conf),
 	)
 
 	//-- App
-	a := app.NewApp(conf, &client, db, deps)
+	a := app.NewApp(conf, client, db, deps)
 
 	jsonCors := server.Chain(server.CorsMiddleware, server.JsonResponseMiddleware)
 
