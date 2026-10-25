@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -105,7 +106,14 @@ func preRunHook(ctx context.Context, a *app.App) error {
 func runReceiver(ctx context.Context, a *app.App, publisher queue.Publisher) error {
 	deps := a.AppDeps
 	receiver := pubsub.NewMqttReceiver(deps, a.Conf, a.MqttClient, publisher)
-	return receiver.Run(ctx)
+	err := receiver.Run(ctx)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ctx.Err()
+		}
+		return err
+	}
+	return nil
 }
 
 func run(ctx context.Context, a *app.App) error {
@@ -126,7 +134,12 @@ func run(ctx context.Context, a *app.App) error {
 	defer close(errChan)
 
 	go func() {
-		errChan <- runReceiver(ctx, a, publisher)
+		err := runReceiver(ctx, a, publisher)
+		if err != nil {
+			errChan <- err
+		} else {
+			errChan <- errors.New("runReceiver exited")
+		}
 	}()
 
 	for {

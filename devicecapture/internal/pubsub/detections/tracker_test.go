@@ -1,10 +1,10 @@
 package detections
 
 import (
+	"devicecapture/internal/domain/devices"
 	"testing"
 
 	"devicecapture/internal/domain"
-	"devicecapture/internal/domain/detection"
 	"devicecapture/internal/domain/event"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,9 +15,10 @@ func Test_DetectionTracker_Start(t *testing.T) {
 	tracker := getTestTracker()
 	deviceID := int64(5)
 
-	err := tracker.Start(t.Context(), deviceID, []string{"car"})
+	de, err := tracker.Start(t.Context(), deviceID, []string{"car"})
 
 	a.NoError(err)
+	a.NotEqual(de.ID, int64(0))
 	a.True(tracker.HasEvent(deviceID))
 	a.NotZero(tracker.CurrentEventID(t.Context(), deviceID))
 }
@@ -27,8 +28,9 @@ func Test_DetectionTracker_End(t *testing.T) {
 	tracker := getTestTracker()
 	deviceID := int64(4)
 
-	err := tracker.Start(t.Context(), deviceID, []string{"car"})
+	de, err := tracker.Start(t.Context(), deviceID, []string{"car"})
 	a.NoError(err)
+	a.NotEqual(de.ID, int64(0))
 	a.True(tracker.HasEvent(deviceID))
 
 	err = tracker.End(t.Context(), deviceID)
@@ -55,9 +57,12 @@ func Test_DetectionTracker_Start_MultipleDevicesAreTrackedIndependently(t *testi
 
 	firstDeviceID := int64(10)
 	secondDeviceID := int64(11)
-
-	a.NoError(tracker.Start(t.Context(), firstDeviceID, []string{"car"}))
-	a.NoError(tracker.Start(t.Context(), secondDeviceID, []string{"person"}))
+	firstStart, fErr := tracker.Start(t.Context(), firstDeviceID, []string{"car"})
+	a.NoError(fErr)
+	a.NotEqual(firstStart.ID, int64(0))
+	secondStart, sErr := tracker.Start(t.Context(), secondDeviceID, []string{"person"})
+	a.NoError(sErr)
+	a.NotEqual(secondStart.ID, int64(0))
 
 	a.True(tracker.HasEvent(firstDeviceID))
 	a.True(tracker.HasEvent(secondDeviceID))
@@ -74,7 +79,7 @@ func Test_DetectionTracker_ReceiveDetections_StartsEventWhenDeviceHasNoEvent(t *
 	tracker := getTestTracker()
 	deviceID := int64(30)
 
-	err := tracker.ReceiveDetections(ctx, deviceID, []detection.Detection{
+	err := tracker.ReceiveDetections(ctx, deviceID, []devices.Detection{
 		{Label: "car"},
 	})
 
@@ -94,13 +99,14 @@ func Test_DetectionTracker_ReceiveDetections_KeepsEventWhenLabelsMatch(t *testin
 	ctx := t.Context()
 	tracker := getTestTracker()
 	deviceID := int64(31)
-
-	a.NoError(tracker.Start(ctx, deviceID, []string{"car"}))
+	de, err := tracker.Start(ctx, deviceID, []string{"car"})
+	a.NoError(err)
+	a.NotEqual(de.ID, int64(0))
 
 	oldEventID := tracker.CurrentEventID(ctx, deviceID)
 	require.NotZero(t, oldEventID)
 
-	err := tracker.ReceiveDetections(ctx, deviceID, []detection.Detection{
+	err = tracker.ReceiveDetections(ctx, deviceID, []devices.Detection{
 		{Label: "car"},
 	})
 
@@ -121,13 +127,14 @@ func Test_DetectionTracker_ReceiveDetections_RestartsEventWhenLabelsDiffer(t *te
 	ctx := t.Context()
 	tracker := getTestTracker()
 	deviceID := int64(32)
-
-	a.NoError(tracker.Start(ctx, deviceID, []string{"car"}))
+	de, err := tracker.Start(ctx, deviceID, []string{"car"})
+	a.NoError(err)
+	a.NotEqual(de.ID, int64(0))
 
 	oldEventID := tracker.CurrentEventID(ctx, deviceID)
 	require.NotZero(t, oldEventID)
 
-	err := tracker.ReceiveDetections(ctx, deviceID, []detection.Detection{
+	err = tracker.ReceiveDetections(ctx, deviceID, []devices.Detection{
 		{Label: "person"},
 	})
 
@@ -154,7 +161,7 @@ func Test_DetectionTracker_ReceiveDetections_RestartsEventWhenLabelsDiffer(t *te
 func Test_DetectionLabels(t *testing.T) {
 	a := assert.New(t)
 
-	labels := DetectionLabels([]detection.Detection{
+	labels := DetectionLabels([]devices.Detection{
 		{Label: "car"},
 		{Label: "person"},
 	})
@@ -174,7 +181,7 @@ func Test_DetectionTracker_ReceiveDetections_UsesLatestPersistedEvent(t *testing
 
 	tracker := NewDetectionTracker(deps)
 
-	err = tracker.ReceiveDetections(ctx, deviceID, []detection.Detection{
+	err = tracker.ReceiveDetections(ctx, deviceID, []devices.Detection{
 		{Label: "car"},
 	})
 
@@ -202,7 +209,7 @@ func Test_DetectionTracker_ReceiveDetections_RestartsLatestPersistedEventWhenLab
 
 	tracker := NewDetectionTracker(deps)
 
-	err = tracker.ReceiveDetections(ctx, deviceID, []detection.Detection{
+	err = tracker.ReceiveDetections(ctx, deviceID, []devices.Detection{
 		{Label: "person"},
 	})
 
