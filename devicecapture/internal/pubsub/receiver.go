@@ -90,12 +90,12 @@ func (mr *MqttReceiver) SubscribeDeviceImage(ctx context.Context) error {
 
 	deviceImageMqttHandler := MessageHandler(func(topic string, payload []byte) error {
 		select {
+		case <-ctx.Done():
+			return nil
 		case deviceImageChan <- mqttEvent{
 			Topic:   topic,
 			Payload: payload,
 		}:
-		case <-ctx.Done():
-			return nil
 		}
 		return nil
 	})
