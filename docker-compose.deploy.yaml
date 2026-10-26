@@ -1,0 +1,133 @@
+services:
+  blink_detection_service:
+    image: 192.168.0.15:5000/openblink-blink-detection-service:latest
+    platform: linux/arm64
+    container_name: blink_detection_service
+    build:
+      context: ./detection_service
+      dockerfile: Dockerfile
+      args:
+        TORCH_BASE: 192.168.0.15:5000/torch-base:1.0
+
+    networks:
+      - openblink
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  runtime-base:
+    image: 192.168.0.15:5000/openblink-runtime-base:local
+    platform: linux/arm64
+    build:
+      context: ./devicecapture
+      dockerfile: docker/runtime-base.Dockerfile
+    profiles:
+      - build-only
+
+  go-base:
+    image: 192.168.0.15:5000/openblink-go-base:local
+    platform: linux/arm64
+    build:
+      context: ./devicecapture
+      dockerfile: docker/go-base.Dockerfile
+    profiles:
+      - build-only
+
+  devicecapture:
+    image: 192.168.0.15:5000/openblink-devicecapture:latest
+    platform: linux/arm64
+    build:
+      context: ./devicecapture
+      dockerfile: docker/Dockerfile
+      args:
+        GO_BUILD_BASE: 192.168.0.15:5000/openblink-go-base:local
+        RUNTIME_BASE: 192.168.0.15:5000/openblink-runtime-base:local
+    container_name: devicecapture
+    networks:
+      - openblink
+    volumes:
+      - ./devicecapture/static/videos:/static/videos
+    depends_on:
+      - postgres
+    env_file: .env
+    restart: unless-stopped
+
+  deviceserver:
+    image: 192.168.0.15:5000/openblink-deviceserver:latest
+    platform: linux/arm64
+    build:
+      context: ./devicecapture
+      dockerfile: docker/deviceserver.Dockerfile
+      args:
+        GO_BUILD_BASE: 192.168.0.15:5000/openblink-go-base:local
+        RUNTIME_BASE: 192.168.0.15:5000/openblink-runtime-base:local
+    container_name: deviceserver
+    networks:
+      - openblink
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./devicecapture/static/videos:/static/videos
+      - ./devicecapture/static:/usr/src/app/static
+    depends_on:
+      - postgres
+    env_file: .env
+    restart: unless-stopped
+  test:
+    build:
+      context: ./devicecapture
+      dockerfile: docker/test.Dockerfile
+      args:
+        GO_BUILD_BASE: openblink-go-base:local
+    networks:
+      - openblink
+    volumes:
+      - ./devicecapture:/usr/src/app
+    depends_on:
+      - postgres
+    env_file: .env.example
+  postgres:
+    image: postgres:16-alpine3.22
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    networks:
+      - openblink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./devicecapture/internal/postgres/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./devicecapture/docker/init-databases.sql:/docker-entrypoint-initdb.d/02-init-databases.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  migrate:
+    &migrate_base
+    image: ghcr.io/kukymbr/goose-docker:3.27.0
+    environment:
+      - GOOSE_DBSTRING=postgres://postgres:postgres@postgres:5432/openblink
+      - GOOSE_DRIVER=postgres
+    command: up
+    networks:
+      - openblink
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./devicecapture/internal/postgres/migrations:/migrations
+  # Migrations for the test DB
+  migrate_test:
+    <<: *migrate_base
+    environment:
+      - GOOSE_DBSTRING=postgres://postgres:postgres@postgres:5432/test_openblink
+      - GOOSE_DRIVER=postgres
+
+networks:
+  openblink:
+    driver: bridge
+volumes:
+  postgres_data:
