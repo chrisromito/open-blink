@@ -125,9 +125,3 @@ volumes:
       type: none
       o: bind
       device: /mnt/rackdrive/open-blink-static
-  rack_files:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/rackdrive/open-blink-static/media
