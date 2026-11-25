@@ -102,7 +102,8 @@ func preRunHook(ctx context.Context, a *app.App) error {
 	arch := archive.NewArchivist(a.Conf, queries)
 	aErr := arch.Run(ctx)
 	if aErr != nil {
-		return aErr
+		logger.Error().Str("devicecapture", "preRunHook").
+			Err(aErr).Send()
 	}
 	return queries.EndStaleDetectionEvents(ctx)
 }
