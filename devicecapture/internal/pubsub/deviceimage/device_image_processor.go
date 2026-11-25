@@ -71,6 +71,13 @@ func (p *DeviceImageProcessor) HandleDeviceImageCreated(
 
 	frame, err := frameFromDeviceImage(img)
 	if err != nil {
+		logger.Error().
+			Str("DeviceImageProcessor", "HandleDeviceImageCreated").
+			Int64("imageID", img.ID).
+			Int64("deviceID", img.DeviceID).
+			Str("imagePath", img.ImagePath).
+			Err(err).
+			Msg("failed to load image")
 		return fmt.Errorf("load original image %q: %w", img.ImagePath, err)
 	}
 	logger.Debug().
@@ -239,7 +246,7 @@ func annotatedPathFromImagePath(imagePath string) string {
 	return strings.ReplaceAll(annotatedPath, "_", "-")
 }
 
-// writeAnnotatedImage draws [detections] on the given frame [f] and writes it to the file-system at "path"
+// writeAnnotatedImage draws [detection.Detection] on the given frame [f] and writes it to the file-system at "path"
 func writeAnnotatedImage(f queue.Frame, path string, detections []detection.Detection) error {
 	// We have >= 1 detection, draw the bboxes
 	anno := camera.DrawDetections(f.Image, detections)

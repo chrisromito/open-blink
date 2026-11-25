@@ -83,7 +83,6 @@ func main() {
 				Msg("run threw")
 		}
 		cancel()
-		panic("capture loop exited")
 	}()
 
 	select {
@@ -100,6 +99,11 @@ func main() {
 
 func preRunHook(ctx context.Context, a *app.App) error {
 	queries := a.Db.GetQueries()
+	arch := archive.NewArchivist(a.Conf, queries)
+	aErr := arch.Run(ctx)
+	if aErr != nil {
+		return aErr
+	}
 	return queries.EndStaleDetectionEvents(ctx)
 }
 
@@ -135,6 +139,9 @@ func run(ctx context.Context, a *app.App) error {
 
 	go func() {
 		err := runReceiver(ctx, a, publisher)
+		if ctx.Err() != nil {
+			return
+		}
 		if err != nil {
 			errChan <- err
 		} else {

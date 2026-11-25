@@ -14,7 +14,7 @@ LIMIT 1;
 -- name: GetEvents :many
 SELECT *
 FROM detection_events
-WHERE (
+WHERE detection_events.labels != '' AND (
     CASE
         WHEN @device_id::bigint = 0
             THEN detection_events.device_id IS NOT NULL
@@ -100,11 +100,9 @@ SELECT detection_events.*,
        detections.bbox,
        detections.image_id   AS detected_image_id
 FROM detection_events
-         JOIN device_images ON device_images.event_id = detection_events.id
          JOIN detections ON detections.event_id = detection_events.id
+         JOIN device_images ON device_images.id = detections.image_id
 WHERE detection_events.id = @id
-  AND detections.created_at >= detection_events.created_at
-  AND detections.created_at <= detection_events.ended_at
 LIMIT 100;
 
 

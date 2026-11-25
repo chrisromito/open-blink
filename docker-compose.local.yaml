@@ -16,6 +16,7 @@ services:
       - openblink
     volumes:
       - ./devicecapture/static/videos:/static/videos
+      - rack_archive:/archive
     depends_on:
       - mosquitto
       - postgres
@@ -33,6 +34,7 @@ services:
     volumes:
       - ./devicecapture/static/videos:/static/videos
       - ./devicecapture/static:/usr/src/app/static
+      - rack_archive:/archive
     depends_on:
       - mosquitto
       - postgres
@@ -82,8 +84,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - rack_files:/srv/archive:ro
+
 networks:
   openblink:
     driver: bridge
 volumes:
   postgres_data:
+  rack_archive:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./archive
+  rack_files:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./archive/media
+

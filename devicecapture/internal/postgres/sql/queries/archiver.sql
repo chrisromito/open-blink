@@ -10,7 +10,8 @@ LIMIT 500;
 
 -- name: SetArchived :exec
 UPDATE device_images
-SET image_path = @image_path
+SET image_path = @image_path,
+    annotated_path = @annotated_path
 WHERE id = @id;
 
 -- name: PurgeOldestTargets :exec

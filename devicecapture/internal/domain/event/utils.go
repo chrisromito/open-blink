@@ -10,10 +10,6 @@ func LabelsEq(left []string, right []string) bool {
 		return false
 	}
 	// Clone and sort both slices before checking equality
-	//ls := Uniq(left)
-	//slices.Sort(ls)
-	//rs := Uniq(right)
-	//slices.Sort(rs)
 	lSorted := left
 	slices.Sort(lSorted)
 	rSorted := right

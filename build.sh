@@ -6,12 +6,12 @@ PLATFORM="linux/arm64"
 COMPOSE="docker-compose.deploy.yaml"
 
 # Build and push ARM64 base images
-docker buildx build \
-  --platform "$PLATFORM" \
-  -f detection_service/torch.Dockerfile \
-  -t "$REGISTRY/torch-base:1.0" \
-  --push \
-  detection_service
+#docker buildx build \
+#  --platform "$PLATFORM" \
+#  -f detection_service/torch.Dockerfile \
+#  -t "$REGISTRY/torch-base:1.0" \
+#  --push \
+#  detection_service
 
 docker buildx build \
   --platform "$PLATFORM" \

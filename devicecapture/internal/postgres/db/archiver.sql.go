@@ -64,16 +64,18 @@ func (q *Queries) PurgeOldestTargets(ctx context.Context) error {
 
 const setArchived = `-- name: SetArchived :exec
 UPDATE device_images
-SET image_path = $1
-WHERE id = $2
+SET image_path = $1,
+    annotated_path = $2
+WHERE id = $3
 `
 
 type SetArchivedParams struct {
-	ImagePath string `db:"image_path" json:"image_path"`
-	ID        int64  `db:"id" json:"id"`
+	ImagePath     string  `db:"image_path" json:"image_path"`
+	AnnotatedPath *string `db:"annotated_path" json:"annotated_path"`
+	ID            int64   `db:"id" json:"id"`
 }
 
 func (q *Queries) SetArchived(ctx context.Context, arg SetArchivedParams) error {
-	_, err := q.db.Exec(ctx, setArchived, arg.ImagePath, arg.ID)
+	_, err := q.db.Exec(ctx, setArchived, arg.ImagePath, arg.AnnotatedPath, arg.ID)
 	return err
 }

@@ -20,6 +20,7 @@ func NewAppDb() *AppDb {
 	return &AppDb{}
 }
 
+// NewTestAppDb get an AppDb pre-connected to the test DB
 func NewTestAppDb() (*AppDb, error) {
 	appDb := NewAppDb()
 	err := appDb.Connect(testDatabaseURL)

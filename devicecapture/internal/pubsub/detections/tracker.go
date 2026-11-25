@@ -68,17 +68,17 @@ func (dt *DetectionTracker) ReceiveDetections(
 	}
 
 	labels := DetectionLabels(detections)
-
-	logger.Debug().
-		Str("tracker", "ReceiveDetections").
-		Int64("deviceID", deviceID).
-		Interface("labels", labels).
-		Send()
-
 	latestEvent, err := dt.EventRepo.GetLatest(ctx, deviceID)
 	if err != nil {
 		return fmt.Errorf("get latest detection event for device %d: %w", deviceID, err)
 	}
+	logger.Debug().
+		Str("tracker", "ReceiveDetections").
+		Int64("deviceID", deviceID).
+		Strs("labels", labels).
+		Any("latestEventID", latestEvent.ID).
+		Strs("lastLabels", latestEvent.Labels).
+		Send()
 	var dids []int64
 	for _, det := range detections {
 		dids = append(dids, det.ID)
@@ -90,17 +90,33 @@ func (dt *DetectionTracker) ReceiveDetections(
 			return err
 		}
 		err = dt.DetectionRepo.SetEvent(ctx, dids, evt.ID)
+		logger.Debug().
+			Str("tracker", "ReceiveDetections").
+			Int64("deviceID", deviceID).
+			Strs("labels", labels).
+			Interface("latestEvent", latestEvent).
+			Send()
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 
 	// If the detection labels didn't change, just update Detection.EventIDs
 	if event.LabelsEq(latestEvent.Labels, labels) {
 		err = dt.DetectionRepo.SetEvent(ctx, dids, latestEvent.ID)
+		logger.Debug().
+			Str("tracker", "ReceiveDetections").
+			Int64("deviceID", deviceID).
+			Strs("labels", labels).
+			Strs("Eq", latestEvent.Labels).Send()
 		return err
 	}
-
+	logger.Debug().
+		Str("tracker", "ReceiveDetections").
+		Int64("deviceID", deviceID).
+		Strs("labels", labels).
+		Strs("notEq", latestEvent.Labels).Send()
 	// An event exists and the labels changed, so we need to end the previous
 	if err = dt.endEvent(ctx, latestEvent); err != nil {
 		return err

@@ -29,13 +29,14 @@ type MqttClientOptions struct {
 	ConnectTimeout time.Duration
 }
 
-//func NewMqttClient(client mqtt.Client) *MqttClient {
-//	return &MqttClient{
-//		client:   client,
-//		qos:      defaultQOS,
-//		retained: defaultRetained,
-//	}
-//}
+func NewMqttClient(client mqtt.Client, opts MqttClientOptions) *MqttClient {
+	return &MqttClient{
+		client:   client,
+		qos:      opts.QOS,
+		retained: opts.Retained,
+		opts:     opts,
+	}
+}
 
 func NewMqttClientOptions(conf *config.Config, clientID string) MqttClientOptions {
 	return MqttClientOptions{
@@ -92,12 +93,7 @@ func NewConnectedMqttClient(opts MqttClientOptions) (*MqttClient, error) {
 		return nil, fmt.Errorf("mqtt connect: %w", err)
 	}
 
-	return &MqttClient{
-		client:   client,
-		qos:      opts.QOS,
-		retained: opts.Retained,
-		opts:     opts,
-	}, nil
+	return NewMqttClient(client, opts), nil
 }
 
 func (c *MqttClient) Copy(clientID string) (*MqttClient, error) {

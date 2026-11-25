@@ -41,15 +41,15 @@ func GetDetectionImagesByLabelHandler(a *app.App) http.HandlerFunc {
 			}
 		}
 		deviceID := int64(0)
-		queryDevice := r.URL.Query().Get("device_id")
-		if queryDevice != "" {
-			idInt, err := strconv.ParseInt(queryDevice, 10, 64)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			deviceID = idInt
-		}
+		//queryDevice := r.URL.Query().Get("device_id")
+		//if queryDevice != "" {
+		//	idInt, err := strconv.ParseInt(queryDevice, 10, 64)
+		//	if err != nil {
+		//		http.Error(w, err.Error(), http.StatusBadRequest)
+		//		return
+		//	}
+		//	deviceID = idInt
+		//}
 		params := history.DetectionWithImageParams{
 			Label:    labelQuery,
 			DeviceID: deviceID,
@@ -135,6 +135,7 @@ func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
 		idInt, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		logger.Debug().Str("endpoint", "DetectionEventDetailHandler").
 			Str("id", r.PathValue("id")).
+			Int64("idInt", idInt).
 			Send()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -149,6 +150,10 @@ func DetectionEventDetailHandler(a *app.App) http.HandlerFunc {
 			http.Error(w, dbErr.Error(), http.StatusInternalServerError)
 			return
 		}
+		logger.Debug().
+			Str("endpoint", "DetectionEventDetailHandler").
+			Any("data", eventDetails).
+			Send()
 		if err = json.NewEncoder(w).Encode(eventDetails); err != nil {
 			logger.Error().Err(err).
 				Str("endpoint", "DetectionEventDetailHandler").

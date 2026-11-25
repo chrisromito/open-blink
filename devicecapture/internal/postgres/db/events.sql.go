@@ -77,11 +77,9 @@ SELECT detection_events.id, detection_events.device_id, detection_events.created
        detections.bbox,
        detections.image_id   AS detected_image_id
 FROM detection_events
-         JOIN device_images ON device_images.event_id = detection_events.id
          JOIN detections ON detections.event_id = detection_events.id
+         JOIN device_images ON device_images.id = detections.image_id
 WHERE detection_events.id = $1
-  AND detections.created_at >= detection_events.created_at
-  AND detections.created_at <= detection_events.ended_at
 LIMIT 100
 `
 
@@ -142,7 +140,7 @@ func (q *Queries) GetEventDetails(ctx context.Context, id int64) ([]GetEventDeta
 const getEvents = `-- name: GetEvents :many
 SELECT id, device_id, created_at, ended_at, labels, state
 FROM detection_events
-WHERE (
+WHERE detection_events.labels != '' AND (
     CASE
         WHEN $1::bigint = 0
             THEN detection_events.device_id IS NOT NULL

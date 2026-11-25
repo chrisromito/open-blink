@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"devicecapture/internal/pubsub/detections"
 	"net/http"
 	"sync"
 	"time"
@@ -53,7 +54,7 @@ func DetectionStreamHandler(a *app.App) http.HandlerFunc {
 
 		go func() {
 			defer wg.Done()
-			err = qtClient.Subscribe("detections/#", func(topic string, payload []byte) error {
+			err = qtClient.Subscribe(detections.SubscribeTopic(), func(topic string, payload []byte) error {
 				logger.Info().
 					Msg("detection msg received, passing to websocket client")
 				wsErr := wsjson.Write(ctx, c, string(payload))

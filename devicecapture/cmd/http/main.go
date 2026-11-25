@@ -97,6 +97,11 @@ func main() {
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	if conf.ArchivePath != "" {
+		logger.Info().Msgf("server is using %s for ArchivedMedia", conf.ArchivePath)
+		archiveFs := http.FileServer(http.Dir(conf.ArchivePath))
+		http.Handle("/archive/", http.StripPrefix("/archive/", archiveFs))
+	}
 
 	//lis, nErr := net.Listen("tcp", ":")
 

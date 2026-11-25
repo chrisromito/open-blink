@@ -22,3 +22,4 @@ build/
 mosquitto/*
 videos/*
 devicecapture/static/videos/*
+archive/*
